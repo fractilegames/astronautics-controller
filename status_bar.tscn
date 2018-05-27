@@ -1,0 +1,70 @@
+[gd_scene load_steps=2 format=1]
+
+[sub_resource type="GDScript" id=1]
+
+script/source = "
+extends Control
+
+var base_color = Color(1.0, 1.0, 1.0, 1.0)
+var value = 0.0
+
+
+func _ready():
+	# Called every time the node is added to the scene.
+	# Initialization here
+	#set_custom_minimum_size( Vector2(30,30) )
+	pass
+
+
+func set_color(var color):
+	base_color = color
+	update()
+
+
+func set_value(var val):
+	value = val
+	update()
+
+
+func _draw():
+	var size = get_size()
+	var color = base_color
+	var line_width = 3.0
+	
+	# Draw outline
+	draw_line_quad(Vector2(0.0, line_width / 2.0), Vector2(size.x, line_width / 2.0), color, line_width, 0.0)
+	draw_line_quad(Vector2(0.0, size.y - line_width / 2.0), Vector2(size.x, size.y - line_width / 2.0), color, line_width, 0.0)	
+	draw_line_quad(Vector2(line_width / 2.0, line_width), Vector2(line_width / 2.0, size.y - line_width), color, line_width, 0.0)
+	draw_line_quad(Vector2(size.x - line_width / 2.0, line_width), Vector2(size.x - line_width / 2.0, size.y - line_width), color, line_width, 0.0)
+	
+	# Draw indicator bar
+	draw_rect(Rect2(line_width * 2.0, line_width * 2.0, (size.x - line_width * 4.0) * value, size.y - line_width * 4.0), color)
+
+
+func draw_line_quad(source, target, color, width, overdraw):
+	var dir = (target - source).normalized()
+	var norm = Vector2(dir.y, -dir.x)
+	
+	var points = Vector2Array()
+	points.push_back(source + norm * width / 2 - dir * overdraw)
+	points.push_back(target + norm * width / 2 + dir * overdraw)
+	points.push_back(target - norm * width / 2 + dir * overdraw)
+	points.push_back(source - norm * width / 2 - dir * overdraw)
+	draw_colored_polygon(points, color)
+
+
+"
+
+[node name="StatusBar" type="Control"]
+
+focus/ignore_mouse = false
+focus/stop_mouse = true
+size_flags/horizontal = 2
+size_flags/vertical = 2
+margin/left = 0.0
+margin/top = 0.0
+margin/right = 0.0
+margin/bottom = 0.0
+script/script = SubResource( 1 )
+
+
