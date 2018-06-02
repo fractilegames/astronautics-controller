@@ -6,4 +6,5 @@ This is a [Godot engine](https://godotengine.org/) 2.x project. The official And
 
 ![Game concept image](http://www.fractilegames.com/images/astronautics-concept-small.png)
 
-This source code is released under [MIT license](https://opensource.org/licenses/MIT).
+This source code is released under [MIT license](https://opensource.org/licenses/MIT). The font used is Forced Square by [Paul Ijsendoorn](http://www.drawperfect.com/) (CC BY-ND 3.0).
+
