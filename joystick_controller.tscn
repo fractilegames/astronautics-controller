@@ -144,12 +144,10 @@ func _draw():
 	var dist = cursor_delta.length() / cursor_threshold
 	var dir = cursor_delta.normalized()
 
-	var line_width = 5
+	var line_width = 4
 	var line_color = cursor_color;
 	if(dist > 0.2):
 		line_color = cursor_color_pressed;
-	if(dist > 1.0):
-		line_width = 10;
 	
 #	draw_circle(cursor_radius * 0.2, 24, line_color, line_width)
 	draw_circle_outline(cursor_radius + cursor_threshold * 0.2, 48, line_color, line_width)

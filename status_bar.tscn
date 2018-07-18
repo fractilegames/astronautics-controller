@@ -29,7 +29,7 @@ func set_value(var val):
 func _draw():
 	var size = get_size()
 	var color = base_color
-	var line_width = 3.0
+	var line_width = 4.0
 	
 	# Draw outline
 	draw_line_quad(Vector2(0.0, line_width / 2.0), Vector2(size.x, line_width / 2.0), color, line_width, 0.0)
