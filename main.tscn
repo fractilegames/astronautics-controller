@@ -212,7 +212,7 @@ func _on_about_panel_ok_button_pressed():
 	get_node(\"Controller\").set_active(true)
 
 func _on_about_panel_link_button_pressed():
-	OS.shell_open(\"http://www.fractilegames.com/products/astronautics/\")
+	OS.shell_open(\"http://www.fractilegames.com/astronautics/\")
 
 func _on_privacy_panel_accept_button_pressed():
 	config.set_value(\"settings\", \"privacy_notice\", 1)
@@ -978,7 +978,7 @@ size_flags/vertical = 2
 margin/left = 23.0
 margin/top = 23.0
 margin/right = 2071.0
-margin/bottom = 257.0
+margin/bottom = 267.0
 texture = ExtResource( 6 )
 stretch_mode = 0
 
@@ -989,15 +989,14 @@ focus/stop_mouse = true
 size_flags/horizontal = 2
 size_flags/vertical = 2
 margin/left = 24.0
-margin/top = 152.0
+margin/top = 140.0
 margin/right = 840.0
-margin/bottom = 319.0
+margin/bottom = 320.0
 bbcode/enabled = false
-bbcode/bbcode = "Mobile controller application for Hyper Ultra Astronautics. An intense local multiplayer space arena shooter on PC.
+bbcode/bbcode = "Mobile controller application for Hyper Ultra Astronautics - A local multiplayer space arena shoot'em up on PC.
 
 Copyright 2018 FRACTiLE Games
-http://www.fractilegames.com
-"
+http://www.fractilegames.com"
 visible_characters = -1
 percent_visible = 1.0
 
@@ -1035,7 +1034,6 @@ flat = false
 
 [node name="PrivacyPanel" type="PopupPanel" parent="."]
 
-visibility/visible = false
 focus/ignore_mouse = false
 focus/stop_mouse = true
 size_flags/horizontal = 2
@@ -1056,12 +1054,12 @@ margin/left = 24.0
 margin/top = 16.0
 margin/right = 840.0
 margin/bottom = 319.0
-bbcode/enabled = true
+bbcode/enabled = false
 bbcode/bbcode = "PRIVACY POLICY
 
-This app does not collect or process any personal data other than device network address which is needed to connect to the game.
+This application does not collect or process any personal data other than device network address which is needed to connect to the game.
 
-Your device's network address and the player name you may have set will be transmitted to current Wi-Fi network and will be accessed by game servers running in the network. The same information is technically visible to anyone connected to the same network."
+Your device's network address and the player name you may have set will be transmitted unencrypted in the current Wi-Fi network and will be accessed by game servers running in same subnetwork."
 visible_characters = -1
 percent_visible = 1.0
 
