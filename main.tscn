@@ -23,6 +23,7 @@ var sequence = 0
 var ack = 0
 var timer = 0.0
 var connected_address = \"\"
+var connection_active = false
 var connection_timer
 var configure_timer
 var config_sequence_number = 1
@@ -246,8 +247,15 @@ func _process(delta):
 	if(connected_address != \"\"):
 		var controller = get_node(\"Controller\")
 		
+		# Use lower send interval while connection is \"not active\" to prevent unnecessarily spamming
+		# the server in case the connection has been rejected (e.g. too many clients)
+		var interval = 0.5
+		if connection_active:
+			interval = 0.05
+		
+		# Send control data to server
 		timer += delta;
-		if(timer > 0.05):
+		if(timer > interval):
 			
 			if(sequence >= 65535):
 				sequence = 1
@@ -262,14 +270,12 @@ func _process(delta):
 				data.set(12, axis_to_byte(controller.get_aim_dir().y))
 				data.set(13, axis_to_byte(controller.get_move_dir().x))
 				data.set(14, axis_to_byte(controller.get_move_dir().y))
-				
-				#get_node(\"StatusLabel\").set_text(\"dir: \" + str(controller.get_move_dir()) + \" -> \" + str(data[11]) + \",\" + str(data[12]))			
 			else:
 				data.set(10, 0)
 			
 			udp.put_packet(data)
 			
-			timer -= 0.05
+			timer -= interval
 	
 	update_flash(delta)
 
@@ -277,6 +283,7 @@ func _process(delta):
 func connect_to_game(title, host):
 		# Store host address and set socket send address
 		connected_address = host
+		connection_active = false
 		udp.set_send_address(connected_address, port)
 		
 		# Set initial configure message
@@ -301,6 +308,7 @@ func disconnect_from_game(reason):
 	
 	# Clear stored host address
 	connected_address = \"\"
+	connection_active = false
 	
 	# Update UI
 	if(reason == \"\"):
@@ -550,6 +558,9 @@ func handle_status_message(packet, host, port):
 	
 	# Reset connection timeout timer
 	connection_timer.start()
+	
+	# Mark connection active once we have received a status messsage from server
+	connection_active = true;
 	
 "
 
