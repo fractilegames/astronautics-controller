@@ -1,11 +1,12 @@
-[gd_scene load_steps=8 format=1]
+[gd_scene load_steps=9 format=1]
 
-[ext_resource path="res://controller.thm" type="Theme" id=1]
+[ext_resource path="res://controller.xthm" type="Theme" id=1]
 [ext_resource path="res://font.fnt" type="BitmapFont" id=2]
 [ext_resource path="res://status_bar.tscn" type="PackedScene" id=3]
 [ext_resource path="res://integrity.png" type="Texture" id=4]
 [ext_resource path="res://temperature.png" type="Texture" id=5]
 [ext_resource path="res://logo.png" type="Texture" id=6]
+[ext_resource path="res://flash.png" type="Texture" id=7]
 
 [sub_resource type="GDScript" id=1]
 
@@ -28,13 +29,15 @@ var connection_timer
 var configure_timer
 var config_sequence_number = 1
 var player_hue = 0
-var background_style = StyleBoxFlat.new()
+var background_style
 var flash_intensity = 0.0
 var event_trigger = 0
 
 
 func _ready():
 	
+	background_style = StyleBoxTexture.new()
+	background_style.set_texture(preload(\"res://background.png\"))
 	add_style_override(\"panel\", background_style)
 	
 	# Load configuration or set defaults
@@ -50,12 +53,12 @@ func _ready():
 	button_controller = preload(\"res://button_controller.tscn\").instance()
 	button_controller.set_name(\"Controller\")
 	button_controller.set_pos(Vector2(0, 160))
-	button_controller.add_style_override(\"panel\", background_style)
+	#button_controller.add_style_override(\"panel\", background_style)
 	joystick_controller = preload(\"res://joystick_controller.tscn\").instance()
 	joystick_controller.set_name(\"Controller\")
 	joystick_controller.set_pos(Vector2(0, 160))
 	joystick_controller.set_sensitivity(config.get_value(\"settings\", \"joystick_sensitivity\", 0.5))
-	joystick_controller.add_style_override(\"panel\", background_style)
+	#joystick_controller.add_style_override(\"panel\", background_style)
 
 	# Set intitial controller type
 	set_controller_type(config.get_value(\"settings\", \"controller\", 0))
@@ -214,6 +217,7 @@ func _on_about_panel_ok_button_pressed():
 func _on_about_panel_link_button_pressed():
 	OS.shell_open(\"http://www.fractilegames.com/astronautics/\")
 
+
 func _on_privacy_panel_accept_button_pressed():
 	config.set_value(\"settings\", \"privacy_notice\", 1)
 	config.save(\"user://settings.ini\")
@@ -223,9 +227,11 @@ func _on_privacy_panel_accept_button_pressed():
 	
 	_on_connect_button_pressed()
 
+
 func _on_privacy_panel_reject_button_pressed():
 	get_node(\"PrivacyPanel\").hide()
 	get_node(\"Controller\").set_active(true)
+
 
 func _process(delta):
 
@@ -272,7 +278,7 @@ func _process(delta):
 				data.set(14, axis_to_byte(controller.get_move_dir().y))
 			else:
 				data.set(10, 0)
-			
+						
 			udp.put_packet(data)
 			
 			timer -= interval
@@ -387,15 +393,13 @@ func update_flash(delta):
 		if(flash_intensity < 0.0):
 			flash_intensity = 0.0
 	
-	var bg_color = Color(\"#25252a\")
+	var off_color = Color(\"#000\")
 	var flash_color = Color(1.0, 1.0, 1.0, 1.0)
 	flash_color.s = 1.0
 	flash_color.v = 0.5
 	flash_color.h = player_hue / 255
-	background_style.set_bg_color(bg_color.linear_interpolate(flash_color, flash_intensity))
-	
-	update()
-	get_node(\"Controller\").update()
+
+	get_node(\"Flash\").set_modulate(off_color.linear_interpolate(flash_color, flash_intensity))
 
 
 func axis_to_byte(val):
@@ -1034,6 +1038,7 @@ flat = false
 
 [node name="PrivacyPanel" type="PopupPanel" parent="."]
 
+visibility/visible = false
 focus/ignore_mouse = false
 focus/stop_mouse = true
 size_flags/horizontal = 2
@@ -1099,5 +1104,13 @@ enabled_focus_mode = 2
 shortcut = null
 text = "Reject"
 flat = false
+
+[node name="Flash" type="Sprite" parent="."]
+
+visibility/blend_mode = 1
+transform/pos = Vector2( 509, 299 )
+z/z = 100
+texture = ExtResource( 7 )
+modulate = Color( 0, 0, 0, 1 )
 
 
