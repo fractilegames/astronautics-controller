@@ -1,6 +1,6 @@
 [gd_scene load_steps=9 format=1]
 
-[ext_resource path="res://controller.xthm" type="Theme" id=1]
+[ext_resource path="res://controller.thm" type="Theme" id=1]
 [ext_resource path="res://font.fnt" type="BitmapFont" id=2]
 [ext_resource path="res://status_bar.tscn" type="PackedScene" id=3]
 [ext_resource path="res://integrity.png" type="Texture" id=4]
@@ -53,23 +53,24 @@ func _ready():
 	button_controller = preload(\"res://button_controller.tscn\").instance()
 	button_controller.set_name(\"Controller\")
 	button_controller.set_pos(Vector2(0, 160))
-	#button_controller.add_style_override(\"panel\", background_style)
 	joystick_controller = preload(\"res://joystick_controller.tscn\").instance()
 	joystick_controller.set_name(\"Controller\")
 	joystick_controller.set_pos(Vector2(0, 160))
 	joystick_controller.set_sensitivity(config.get_value(\"settings\", \"joystick_sensitivity\", 0.5))
-	#joystick_controller.add_style_override(\"panel\", background_style)
 
 	# Set intitial controller type
 	set_controller_type(config.get_value(\"settings\", \"controller\", 0))
 	get_node(\"Controller\").set_active(true)
 
 	# Set up connections
-	get_node(\"SettingsButton\").connect(\"pressed\", self, \"_on_settings_button_pressed\")	
+	get_node(\"SettingsButton\").connect(\"pressed\", self, \"_on_settings_button_pressed\")
 	get_node(\"ConnectButton\").connect(\"pressed\", self, \"_on_connect_button_pressed\")
 	get_node(\"AboutButton\").connect(\"pressed\", self, \"_on_about_button_pressed\")
 	get_node(\"ConnectPanel/ConnectButton\").connect(\"pressed\", self, \"_on_connect_panel_connect_button_pressed\")
-	get_node(\"ConnectPanel/CancelButton\").connect(\"pressed\", self, \"_on_connect_panel_cancel_button_pressed\")	
+	get_node(\"ConnectPanel/CancelButton\").connect(\"pressed\", self, \"_on_connect_panel_cancel_button_pressed\")
+	get_node(\"ConnectPanel/GameList\").connect(\"item_selected\", self, \"_on_connect_panel_game_list_item_selected\")
+	get_node(\"ManualConnectPanel/ConnectButton\").connect(\"pressed\", self, \"_on_manual_connect_panel_connect_button_pressed\")
+	get_node(\"ManualConnectPanel/CancelButton\").connect(\"pressed\", self, \"_on_manual_connect_panel_cancel_button_pressed\")
 	get_node(\"SettingsPanel/OKButton\").connect(\"pressed\", self, \"_on_settings_panel_ok_button_pressed\")
 	get_node(\"SettingsPanel/GridContainer/PlayerColorScrollBar\").connect(\"value_changed\", self, \"_on_settings_panel_hue_changed\")
 	get_node(\"AboutPanel/OKButton\").connect(\"pressed\", self, \"_on_about_panel_ok_button_pressed\")
@@ -193,12 +194,45 @@ func _on_connect_panel_connect_button_pressed():
 			
 	# Connect
 	if(index >= 0):
-		connect_to_game(list.get_item_text(index), list.get_item_metadata(index))
+		var host = list.get_item_metadata(index)
+		if(host != \"0.0.0.0\"):
+			connect_to_game(list.get_item_text(index), host)
+		else:
+			get_node(\"ManualConnectPanel/StatusLabel\").set_text(\"\")
+			get_node(\"ManualConnectPanel\").popup()
 
 
 func _on_connect_panel_cancel_button_pressed():
 	get_node(\"ConnectPanel\").hide()
 	get_node(\"Controller\").set_active(true)
+
+
+func _on_connect_panel_game_list_item_selected(var index):
+	# Enable connect button if a game is selected
+	get_node(\"ConnectPanel/ConnectButton\").set_disabled(get_node(\"ConnectPanel/GameList\").get_selected_items().size() == 0)
+
+
+func _on_manual_connect_panel_connect_button_pressed():
+	# Get manually entered host address
+	var address = get_node(\"ManualConnectPanel/AddressLineEdit\").get_text()
+	
+	# Check that entered text is a valid IPv4 address
+	var values = address.split(\".\", false)
+	if values.size() != 4:
+		get_node(\"ManualConnectPanel/StatusLabel\").set_text(\"Invalid address!\")
+		return
+	for i in range(0, 4):
+		var conv = values[i].to_int()
+		if conv < 0 and conv > 255:
+			get_node(\"ManualConnectPanel/StatusLabel\").set_text(\"Invalid address!\")
+			return
+	
+	# Connect
+	connect_to_game(address, address)
+
+
+func _on_manual_connect_panel_cancel_button_pressed():
+	get_node(\"ManualConnectPanel\").hide()
 
 
 func _on_connection_timeout():
@@ -302,6 +336,7 @@ func connect_to_game(title, host):
 		get_node(\"StatusLabel\").set_text(title)
 		get_node(\"ConnectButton\").set_text(\"Disconnect\")
 		get_node(\"ConnectPanel\").hide()
+		get_node(\"ManualConnectPanel\").hide()
 		get_node(\"Controller\").set_active(true)
 
 
@@ -365,6 +400,7 @@ func set_player_hue(hue):
 	theme.set_color(\"font_color_selected\", \"HButtonArray\", color_pressed)
 
 	theme.set_color(\"font_color\", \"Label\", color)
+	theme.set_color(\"default_color\", \"RichTextLabel\", color)
 	
 	theme.set_color(\"font_color\", \"LineEdit\", color)
 	theme.set_color(\"cursor_color\", \"LineEdit\", color)
@@ -376,7 +412,8 @@ func set_player_hue(hue):
 	get_node(\"IntegrityIcon\").set_modulate(color);
 	get_node(\"IntegrityBar\").set_color(color);
 	get_node(\"TemperatureIcon\").set_modulate(color);
-	get_node(\"TemperatureBar\").set_color(color);
+	get_node(\"TemperatureBar\").set_color(color);	
+	get_node(\"AboutPanel/LogoTextureFrame\").set_modulate(color);
 
 	joystick_controller.set_color(color, color_pressed)
 	button_controller.set_color(color, color_pressed)
@@ -414,8 +451,12 @@ func axis_to_byte(val):
 func discover_games():
 	
 	# Clear previous games from list
-	get_node(\"ConnectPanel/GameList\").clear()
-	get_node(\"ConnectPanel/ConnectButton\").set_disabled(true)	
+	var list = get_node(\"ConnectPanel/GameList\")
+	list.clear()
+	list.add_item(\"<Manual connect>\")
+	list.set_item_metadata(0, \"0.0.0.0\")
+	
+	get_node(\"ConnectPanel/ConnectButton\").set_disabled(true)
 	
 	# Construct a discover message
 	var msg = RawArray()
@@ -520,11 +561,13 @@ func handle_announce_message(packet, host, port):
 		list.add_item(title)
 		list.set_item_metadata(index, host)
 	
-	# Select first game
-	if(index == 0):
+	# Auto-select first game if none is selected
+	if list.get_selected_items().size() == 0:
 		list.select(index)
 		get_node(\"ConnectPanel/ConnectButton\").set_disabled(false)
-		get_node(\"ConnectPanel/StatusLabel\").set_text(\"\")
+	
+	# Clear \"searching games..\" status
+	get_node(\"ConnectPanel/StatusLabel\").set_text(\"\")
 
 
 func handle_status_message(packet, host, port):
@@ -634,7 +677,6 @@ flat = false
 
 [node name="SettingsPanel" type="PopupPanel" parent="."]
 
-editor/display_folded = true
 visibility/visible = false
 anchor/right = 1
 anchor/bottom = 1
@@ -671,8 +713,8 @@ focus/stop_mouse = true
 size_flags/horizontal = 2
 size_flags/vertical = 0
 margin/left = 0.0
-margin/top = 7.0
-margin/right = 276.0
+margin/top = 6.0
+margin/right = 283.0
 margin/bottom = 33.0
 custom_fonts/font = ExtResource( 2 )
 text = "Player name:"
@@ -687,9 +729,9 @@ focus/ignore_mouse = false
 focus/stop_mouse = true
 size_flags/horizontal = 2
 size_flags/vertical = 2
-margin/left = 416.0
+margin/left = 423.0
 margin/top = 0.0
-margin/right = 816.0
+margin/right = 823.0
 margin/bottom = 40.0
 custom_fonts/font = ExtResource( 2 )
 placeholder/alpha = 0.6
@@ -705,8 +747,8 @@ focus/stop_mouse = true
 size_flags/horizontal = 2
 size_flags/vertical = 0
 margin/left = 0.0
-margin/top = 71.0
-margin/right = 276.0
+margin/top = 70.0
+margin/right = 283.0
 margin/bottom = 97.0
 custom_fonts/font = ExtResource( 2 )
 text = "Player color:"
@@ -721,9 +763,9 @@ focus/ignore_mouse = false
 focus/stop_mouse = true
 size_flags/horizontal = 2
 size_flags/vertical = 2
-margin/left = 416.0
+margin/left = 423.0
 margin/top = 64.0
-margin/right = 816.0
+margin/right = 823.0
 margin/bottom = 104.0
 range/min = 0.0
 range/max = 255.0
@@ -741,8 +783,8 @@ focus/stop_mouse = true
 size_flags/horizontal = 2
 size_flags/vertical = 0
 margin/left = 0.0
-margin/top = 132.0
-margin/right = 276.0
+margin/top = 131.0
+margin/right = 283.0
 margin/bottom = 158.0
 custom_fonts/font = ExtResource( 2 )
 text = "Controller type:"
@@ -756,10 +798,10 @@ focus/ignore_mouse = false
 focus/stop_mouse = true
 size_flags/horizontal = 2
 size_flags/vertical = 2
-margin/left = 416.0
+margin/left = 423.0
 margin/top = 128.0
-margin/right = 816.0
-margin/bottom = 162.0
+margin/right = 823.0
+margin/bottom = 161.0
 flat = false
 button/count = 2
 button/min_button_size = -1.0
@@ -779,9 +821,9 @@ focus/stop_mouse = true
 size_flags/horizontal = 2
 size_flags/vertical = 0
 margin/left = 0.0
-margin/top = 193.0
-margin/right = 276.0
-margin/bottom = 219.0
+margin/top = 191.0
+margin/right = 283.0
+margin/bottom = 218.0
 text = "Joystick sensitivity:"
 percent_visible = 1.0
 lines_skipped = 0
@@ -794,10 +836,10 @@ focus/ignore_mouse = false
 focus/stop_mouse = true
 size_flags/horizontal = 2
 size_flags/vertical = 2
-margin/left = 416.0
-margin/top = 186.0
-margin/right = 816.0
-margin/bottom = 226.0
+margin/left = 423.0
+margin/top = 185.0
+margin/right = 823.0
+margin/bottom = 225.0
 range/min = 0.0
 range/max = 1.0
 range/step = 0.1
@@ -830,7 +872,6 @@ flat = false
 
 [node name="ConnectPanel" type="PopupPanel" parent="."]
 
-editor/display_folded = true
 visibility/visible = false
 anchor/right = 1
 anchor/bottom = 1
@@ -902,9 +943,9 @@ focus/stop_mouse = true
 size_flags/horizontal = 2
 size_flags/vertical = 0
 margin/left = 30.0
-margin/top = 330.0
+margin/top = 336.0
 margin/right = 444.0
-margin/bottom = 30.0
+margin/bottom = 24.0
 custom_fonts/font = ExtResource( 2 )
 percent_visible = 1.0
 lines_skipped = 0
@@ -1038,6 +1079,7 @@ flat = false
 
 [node name="PrivacyPanel" type="PopupPanel" parent="."]
 
+editor/display_folded = true
 visibility/visible = false
 focus/ignore_mouse = false
 focus/stop_mouse = true
@@ -1112,5 +1154,113 @@ transform/pos = Vector2( 509, 299 )
 z/z = 100
 texture = ExtResource( 7 )
 modulate = Color( 0, 0, 0, 1 )
+
+[node name="ManualConnectPanel" type="PopupPanel" parent="."]
+
+editor/display_folded = true
+visibility/visible = false
+focus/ignore_mouse = false
+focus/stop_mouse = true
+size_flags/horizontal = 2
+size_flags/vertical = 2
+margin/left = 79.0
+margin/top = 119.0
+margin/right = 943.0
+margin/bottom = 519.0
+popup/exclusive = false
+
+[node name="AddressLabel" type="Label" parent="ManualConnectPanel"]
+
+focus/ignore_mouse = true
+focus/stop_mouse = true
+size_flags/horizontal = 2
+size_flags/vertical = 0
+margin/left = 24.0
+margin/top = 30.0
+margin/right = 307.0
+margin/bottom = 57.0
+text = "Game PC address:"
+percent_visible = 1.0
+lines_skipped = 0
+max_lines_visible = -1
+
+[node name="AddressLineEdit" type="LineEdit" parent="ManualConnectPanel"]
+
+focus/ignore_mouse = false
+focus/stop_mouse = true
+size_flags/horizontal = 2
+size_flags/vertical = 2
+margin/left = 442.0
+margin/top = 24.0
+margin/right = 842.0
+margin/bottom = 64.0
+placeholder/alpha = 0.6
+max_length = 16
+focus_mode = 2
+caret/caret_blink = false
+caret/caret_blink_speed = 0.65
+
+[node name="InstructionLabel" type="RichTextLabel" parent="ManualConnectPanel"]
+
+focus/ignore_mouse = false
+focus/stop_mouse = true
+size_flags/horizontal = 2
+size_flags/vertical = 2
+margin/left = 24.0
+margin/top = 90.0
+margin/right = 840.0
+margin/bottom = 310.0
+bbcode/enabled = false
+bbcode/bbcode = "Enter game server (the PC running the game) local network IP address above."
+visible_characters = -1
+percent_visible = 1.0
+
+[node name="ConnectButton" type="Button" parent="ManualConnectPanel"]
+
+focus/ignore_mouse = false
+focus/stop_mouse = true
+size_flags/horizontal = 2
+size_flags/vertical = 2
+margin/left = 650.0
+margin/top = 336.0
+margin/right = 840.0
+margin/bottom = 376.0
+toggle_mode = false
+enabled_focus_mode = 2
+shortcut = null
+text = "Connect"
+flat = false
+
+[node name="CancelButton" type="Button" parent="ManualConnectPanel"]
+
+focus/ignore_mouse = false
+focus/stop_mouse = true
+size_flags/horizontal = 2
+size_flags/vertical = 2
+margin/left = 432.0
+margin/top = 336.0
+margin/right = 622.0
+margin/bottom = 376.0
+toggle_mode = false
+enabled_focus_mode = 2
+shortcut = null
+text = "Cancel"
+flat = false
+
+[node name="StatusLabel" type="Label" parent="ManualConnectPanel"]
+
+anchor/right = 1
+anchor/bottom = 1
+focus/ignore_mouse = true
+focus/stop_mouse = true
+size_flags/horizontal = 2
+size_flags/vertical = 0
+margin/left = 30.0
+margin/top = 336.0
+margin/right = 444.0
+margin/bottom = 24.0
+percent_visible = 1.0
+lines_skipped = 0
+max_lines_visible = -1
 
 
