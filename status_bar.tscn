@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=1]
+[gd_scene load_steps=2 format=2]
 
 [sub_resource type="GDScript" id=1]
 
@@ -45,7 +45,7 @@ func draw_line_quad(source, target, color, width, overdraw):
 	var dir = (target - source).normalized()
 	var norm = Vector2(dir.y, -dir.x)
 	
-	var points = Vector2Array()
+	var points = PoolVector2Array()
 	points.push_back(source + norm * width / 2 - dir * overdraw)
 	points.push_back(target + norm * width / 2 + dir * overdraw)
 	points.push_back(target - norm * width / 2 + dir * overdraw)
@@ -57,14 +57,16 @@ func draw_line_quad(source, target, color, width, overdraw):
 
 [node name="StatusBar" type="Control"]
 
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 0.0
-margin/top = 0.0
-margin/right = 0.0
-margin/bottom = 0.0
-script/script = SubResource( 1 )
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
+script = SubResource( 1 )
 
 

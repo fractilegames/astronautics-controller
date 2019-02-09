@@ -1,13 +1,13 @@
-[gd_scene load_steps=5 format=1]
+[gd_scene load_steps=5 format=2]
 
 [ext_resource path="res://shootbutton.png" type="Texture" id=1]
 
 [sub_resource type="StyleBoxEmpty" id=1]
 
-content_margin/left = -1.0
-content_margin/right = -1.0
-content_margin/top = -1.0
-content_margin/bottom = -1.0
+content_margin_left = -1.0
+content_margin_right = -1.0
+content_margin_top = -1.0
+content_margin_bottom = -1.0
 
 [sub_resource type="GDScript" id=2]
 
@@ -52,13 +52,13 @@ func _input(event):
 	if(!controller_active):
 		return
 	
-	if(event.type == InputEvent.SCREEN_TOUCH):
+	if(event is InputEventScreenTouch):
 		event = make_input_local(event)
-		if(event.pressed and event.pos.y > 0):
-			if(event.pos.x < 720):
-				joystick_origin = event.pos
+		if(event.pressed and event.position.y > 0):
+			if(event.position.x < 720):
+				joystick_origin = event.position
 				joystick_touch_index = event.index
-				get_node(\"Cursor\").set_pos(joystick_origin)
+				get_node(\"Cursor\").set_position(joystick_origin)
 				get_node(\"Cursor\").show()
 			else:
 				shoot_touch_index = event.index
@@ -72,10 +72,10 @@ func _input(event):
 			elif(event.index == shoot_touch_index):
 				shoot_touch_index = -1
 				get_node(\"ShootButton\").set_modulate(ui_color)
-	elif(event.type == InputEvent.SCREEN_DRAG):
+	elif(event is InputEventScreenDrag):
 		event = make_input_local(event)
 		if(event.index == joystick_touch_index):
-			joystick_delta = event.pos - joystick_origin
+			joystick_delta = event.position - joystick_origin
 			
 			# Joystick deflected beyond 120% of range, move origin
 			var distance = joystick_delta.length()
@@ -84,7 +84,7 @@ func _input(event):
 				joystick_origin += joystick_delta * overshoot / distance;
 				joystick_delta -= joystick_delta * overshoot / distance;
 			
-			get_node(\"Cursor\").set_pos(joystick_origin)
+			get_node(\"Cursor\").set_position(joystick_origin)
 			get_node(\"Cursor\").set_delta(joystick_delta)
 		
 		
@@ -156,75 +156,56 @@ func _draw():
 	if(dist > 0.2):
 		line_color = cursor_color_pressed;
 	
-#	draw_circle(cursor_radius * 0.2, 24, line_color, line_width)
 	draw_circle_outline(cursor_radius + cursor_threshold * 0.2, 48, line_color, line_width)
 	draw_circle_outline(cursor_radius + cursor_threshold, 48, line_color, line_width)
 	
 	draw_circle(cursor_delta, cursor_radius, line_color)
-		
-#	if(dist >= 1.0):
-#		draw_arrow(dir * cursor_radius * 0.2, dir * cursor_radius * 2.1, line_color, line_width)
-#	elif(dist > 0.2):
-#		draw_arrow(dir * cursor_radius * 0.2, dir * cursor_radius * 2.0, line_color, line_width)
-
-
-func draw_line_quad(source, target, color, width, overdraw):
-	var dir = (target - source).normalized()
-	var norm = Vector2(dir.y, -dir.x)
-	
-	var points = Vector2Array()
-	points.push_back(source + norm * width / 2 - dir * overdraw)
-	points.push_back(target + norm * width / 2 + dir * overdraw)
-	points.push_back(target - norm * width / 2 + dir * overdraw)
-	points.push_back(source - norm * width / 2 - dir * overdraw)
-	draw_colored_polygon(points, color)
 
 
 func draw_circle_outline(radius, segments, color, width):
+	
+	var points = PoolVector2Array()
+	
 	var previous_position = Vector2(radius, 0.0)
 	for i in range(0, segments):
 		var angle = 360 * (i + 1) / segments
 		var position = Vector2(cos(deg2rad(angle)) * radius, sin(deg2rad(angle)) * radius)
-		draw_line_quad(previous_position, position, color, width, width / 8)
+		points.append(previous_position)
+		points.append(position)
 		previous_position = position
-
-
-func draw_arrow(source, target, color, width):
-	var dir = (target - source).normalized()
-	var norm = Vector2(dir.y, -dir.x)
 	
-	var points = Vector2Array()
-	points.push_back(source + norm * width / 2)
-	points.push_back(source - norm * width / 2)
-	points.push_back(target - dir * width * 2 - norm * width / 2)
-	points.push_back(target - dir * width * 2 - norm * width * 2)
-	points.push_back(target)
-	points.push_back(target - dir * width * 2 + norm * width * 2)
-	points.push_back(target - dir * width * 2 + norm * width / 2)
-	draw_colored_polygon(points, color)
+	draw_polyline(points, color, width, true)
+
 	"
 
-[node name="Panel" type="Panel"]
+[node name="Panel" type="Panel" index="0"]
 
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 0.0
-margin/top = 160.0
-margin/right = 1024.0
-margin/bottom = 600.0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_top = 160.0
+margin_right = 1024.0
+margin_bottom = 600.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
 custom_styles/panel = SubResource( 1 )
-script/script = SubResource( 2 )
+script = SubResource( 2 )
+_sections_unfolded = [ "Material", "Visibility", "custom_styles" ]
 
-[node name="ShootButton" type="Sprite" parent="."]
+[node name="ShootButton" type="Sprite" parent="." index="0"]
 
-transform/pos = Vector2( 928, 256 )
+position = Vector2( 928, 256 )
 texture = ExtResource( 1 )
+_sections_unfolded = [ "Material", "Transform", "Z Index" ]
 
-[node name="Cursor" type="Node2D" parent="."]
+[node name="Cursor" type="Node2D" parent="." index="1"]
 
-transform/pos = Vector2( 252, 242 )
-script/script = SubResource( 3 )
+position = Vector2( 252, 242 )
+script = SubResource( 3 )
 
 

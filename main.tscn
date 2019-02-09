@@ -1,7 +1,7 @@
-[gd_scene load_steps=9 format=1]
+[gd_scene load_steps=11 format=2]
 
-[ext_resource path="res://controller.thm" type="Theme" id=1]
-[ext_resource path="res://font.fnt" type="BitmapFont" id=2]
+[ext_resource path="res://controller.theme" type="Theme" id=1]
+[ext_resource path="res://font.font" type="BitmapFont" id=2]
 [ext_resource path="res://status_bar.tscn" type="PackedScene" id=3]
 [ext_resource path="res://integrity.png" type="Texture" id=4]
 [ext_resource path="res://temperature.png" type="Texture" id=5]
@@ -19,7 +19,7 @@ var config = ConfigFile.new()
 var button_controller
 var joystick_controller
 var udp
-var data = RawArray()
+var data = PoolByteArray()
 var sequence = 0
 var ack = 0
 var timer = 0.0
@@ -38,7 +38,7 @@ func _ready():
 	
 	background_style = StyleBoxTexture.new()
 	background_style.set_texture(preload(\"res://background.png\"))
-	add_style_override(\"panel\", background_style)
+	add_stylebox_override(\"panel\", background_style)
 	
 	# Load configuration or set defaults
 	if(config.load(\"user://settings.ini\") != OK):
@@ -52,10 +52,10 @@ func _ready():
 	# Preload controllers
 	button_controller = preload(\"res://button_controller.tscn\").instance()
 	button_controller.set_name(\"Controller\")
-	button_controller.set_pos(Vector2(0, 160))
+	button_controller.set_position(Vector2(0, 160))
 	joystick_controller = preload(\"res://joystick_controller.tscn\").instance()
 	joystick_controller.set_name(\"Controller\")
-	joystick_controller.set_pos(Vector2(0, 160))
+	joystick_controller.set_position(Vector2(0, 160))
 	joystick_controller.set_sensitivity(config.get_value(\"settings\", \"joystick_sensitivity\", 0.5))
 
 	# Set intitial controller type
@@ -93,7 +93,7 @@ func _ready():
 	add_child(connection_timer)
 	connection_timer.set_wait_time(2.0)
 	connection_timer.set_one_shot(true)
-	connection_timer.set_timer_process_mode(connection_timer.TIMER_PROCESS_FIXED)
+	#connection_timer.set_timer_process_mode(connection_timer.TIMER_PROCESS_FIXED)
 	connection_timer.connect(\"timeout\", self, \"_on_connection_timeout\")
 	
 	# Set up configure message inhibit timer
@@ -101,7 +101,7 @@ func _ready():
 	add_child(configure_timer)
 	configure_timer.set_wait_time(1.0)
 	configure_timer.set_one_shot(true)
-	configure_timer.set_timer_process_mode(configure_timer.TIMER_PROCESS_FIXED)
+	#configure_timer.set_timer_process_mode(configure_timer.TIMER_PROCESS_FIXED)
 	
 	# Create empty control data message
 	data.push_back(0x41)	# Header (\"ACTL\")
@@ -133,8 +133,13 @@ func _on_settings_panel_hue_changed(value):
 func _on_settings_button_pressed():
 	get_node(\"SettingsPanel/GridContainer/PlayerNameLineEdit\").set_text(config.get_value(\"settings\", \"player_name\", \"Remote\"))
 	get_node(\"SettingsPanel/GridContainer/PlayerColorScrollBar\").set_value(config.get_value(\"settings\", \"player_hue\", 0))
-	get_node(\"SettingsPanel/GridContainer/ControllerButtonArray\").set_selected(config.get_value(\"settings\", \"controller\", 0))
+	var type_index = config.get_value(\"settings\", \"controller\", 0)
+	if type_index == 1:
+		get_node(\"SettingsPanel/GridContainer/ControllerTypeContainer/ControllerTypeButton2\").set_pressed(true)
+	else:
+		get_node(\"SettingsPanel/GridContainer/ControllerTypeContainer/ControllerTypeButton1\").set_pressed(true)
 	get_node(\"SettingsPanel/GridContainer/SensitivityScrollBar\").set_value(config.get_value(\"settings\", \"joystick_sensitivity\", 0.5))
+	
 	get_node(\"Controller\").set_active(false)
 	get_node(\"SettingsPanel\").popup()
 	get_node(\"SettingsPanel/OKButton\").grab_focus()
@@ -143,7 +148,9 @@ func _on_settings_button_pressed():
 func _on_settings_panel_ok_button_pressed():
 	var name = get_node(\"SettingsPanel/GridContainer/PlayerNameLineEdit\").get_text()
 	var hue = get_node(\"SettingsPanel/GridContainer/PlayerColorScrollBar\").get_value()
-	var controller = get_node(\"SettingsPanel/GridContainer/ControllerButtonArray\").get_selected()
+	var controller = 0
+	if get_node(\"SettingsPanel/GridContainer/ControllerTypeContainer/ControllerTypeButton2\").is_pressed():
+		controller = 1
 	var sensitivity = get_node(\"SettingsPanel/GridContainer/SensitivityScrollBar\").get_value()
 
 	config.set_value(\"settings\", \"controller\", controller)
@@ -324,7 +331,7 @@ func connect_to_game(title, host):
 		# Store host address and set socket send address
 		connected_address = host
 		connection_active = false
-		udp.set_send_address(connected_address, port)
+		udp.set_dest_address(connected_address, port)
 		
 		# Set initial configure message
 		send_configure_message()
@@ -375,7 +382,7 @@ func set_controller_type(type):
 
 
 func set_player_hue(hue):
-
+	
 	var color = Color(1.0, 1.0, 1.0, 1.0)
 	color.s = 1.0
 	color.v = 1.0
@@ -396,8 +403,12 @@ func set_player_hue(hue):
 	theme.set_color(\"font_color_hover\", \"Button\", color)
 	theme.set_color(\"font_color_disabled\", \"Button\", color_disabled)
 
-	theme.set_color(\"font_color\", \"HButtonArray\", color)
-	theme.set_color(\"font_color_selected\", \"HButtonArray\", color_pressed)
+	theme.set_color(\"font_color\", \"OptionButton\", color)
+	theme.set_color(\"font_color_pressed\", \"OptionButton\", color)
+	theme.set_color(\"font_color_selected\", \"OptionButton\", color_pressed)
+	
+	theme.set_color(\"font_color\", \"PopupMenu\", color)
+	theme.set_color(\"font_color_hover\", \"PopupMenu\", color)
 
 	theme.set_color(\"font_color\", \"Label\", color)
 	theme.set_color(\"default_color\", \"RichTextLabel\", color)
@@ -459,7 +470,7 @@ func discover_games():
 	get_node(\"ConnectPanel/ConnectButton\").set_disabled(true)
 	
 	# Construct a discover message
-	var msg = RawArray()
+	var msg = PoolByteArray()
 	msg.push_back(0x41)		# Header (\"ACTL\")
 	msg.push_back(0x43)
 	msg.push_back(0x54)
@@ -472,7 +483,7 @@ func discover_games():
 	msg.push_back(100)		# Message type: discover
 	
 	# Send the message to multicast address
-	var err = udp.set_send_address(\"224.0.0.1\", port)
+	var err = udp.set_dest_address(\"224.0.0.1\", port)
 	if(err == OK):
 		err = udp.put_packet(msg)
 		if(err == OK):
@@ -481,7 +492,7 @@ func discover_games():
 	if(err != OK):
 		get_node(\"ConnectPanel/StatusLabel\").set_text(\"Network error \" + str(err))
 
-	udp.set_send_address(connected_address, port)
+	udp.set_dest_address(connected_address, port)
 
 	
 func send_configure_message():
@@ -490,7 +501,7 @@ func send_configure_message():
 	var hue = config.get_value(\"settings\", \"player_hue\", 0)
 	
 	# Construct a configure message
-	var msg = RawArray()
+	var msg = PoolByteArray()
 	msg.push_back(0x41)		# Header (\"ACTL\")
 	msg.push_back(0x43)
 	msg.push_back(0x54)
@@ -513,7 +524,7 @@ func send_configure_message():
 
 func send_leave_message():
 	# Construct a leave message
-	var msg = RawArray()
+	var msg = PoolByteArray()
 	msg.push_back(0x41)		# Header (\"ACTL\")
 	msg.push_back(0x43)
 	msg.push_back(0x54)
@@ -535,7 +546,7 @@ func handle_announce_message(packet, host, port):
 		return
 	
 	# Decode game name	
-	var namedata = RawArray()
+	var namedata = PoolByteArray()
 	var namelength = packet[10]
 	if(packet.size() < 11 + namelength):
 		return # Too short message
@@ -611,657 +622,981 @@ func handle_status_message(packet, host, port):
 	
 "
 
-[node name="Panel" type="Panel"]
+[sub_resource type="ButtonGroup" id=2]
 
-anchor/right = 1
-anchor/bottom = 1
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-theme/theme = ExtResource( 1 )
-margin/left = 1.0
-margin/top = 1.0
-margin/right = -1.0
-margin/bottom = -1.0
-script/script = SubResource( 1 )
+resource_local_to_scene = true
+resource_name = "ControllerTypeButtonGroup"
+_sections_unfolded = [ "Resource" ]
 
-[node name="StatusLabel" type="Label" parent="."]
+[sub_resource type="CanvasItemMaterial" id=3]
 
-anchor/right = 1
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 247.0
-margin/top = 23.0
-margin/right = 305.0
-margin/bottom = 63.0
+render_priority = 0
+blend_mode = 1
+light_mode = 0
+
+[node name="Panel" type="Panel" index="0"]
+
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = 1.0
+margin_top = 1.0
+margin_right = 1.0
+margin_bottom = 1.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
+theme = ExtResource( 1 )
+script = SubResource( 1 )
+_sections_unfolded = [ "Material", "Theme", "Visibility" ]
+
+[node name="StatusLabel" type="Label" parent="." index="0"]
+
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 0.0
+margin_left = 247.0
+margin_top = 23.0
+margin_right = -305.0
+margin_bottom = 63.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
 text = "Unconnected"
 valign = 1
 percent_visible = 1.0
 lines_skipped = 0
 max_lines_visible = -1
 
-[node name="ConnectButton" type="Button" parent="."]
+[node name="ConnectButton" type="Button" parent="." index="1"]
 
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 743.0
-margin/top = 23.0
-margin/right = 933.0
-margin/bottom = 63.0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 743.0
+margin_top = 23.0
+margin_right = 933.0
+margin_bottom = 63.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+focus_mode = 2
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
 toggle_mode = false
 enabled_focus_mode = 2
 shortcut = null
+group = null
 text = "Connect"
 flat = false
+align = 1
+_sections_unfolded = [ "Mouse", "Theme", "Visibility" ]
 
-[node name="SettingsButton" type="Button" parent="."]
+[node name="SettingsButton" type="Button" parent="." index="2"]
 
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 23.0
-margin/top = 23.0
-margin/right = 223.0
-margin/bottom = 63.0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 23.0
+margin_top = 23.0
+margin_right = 223.0
+margin_bottom = 63.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+focus_mode = 2
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
 toggle_mode = false
 enabled_focus_mode = 2
 shortcut = null
+group = null
 text = "Settings"
 flat = false
+align = 1
 
-[node name="SettingsPanel" type="PopupPanel" parent="."]
+[node name="SettingsPanel" type="PopupPanel" parent="." index="3"]
 
-visibility/visible = false
-anchor/right = 1
-anchor/bottom = 1
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 79.0
-margin/top = 119.0
-margin/right = 81.0
-margin/bottom = 81.0
-popup/exclusive = true
+editor/display_folded = true
+visible = false
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = 79.0
+margin_top = 119.0
+margin_right = -81.0
+margin_bottom = -81.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
+popup_exclusive = true
 
-[node name="GridContainer" type="GridContainer" parent="SettingsPanel"]
+[node name="GridContainer" type="GridContainer" parent="SettingsPanel" index="0"]
 
-anchor/right = 1
-anchor/bottom = 1
-focus/ignore_mouse = false
-focus/stop_mouse = false
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 24.0
-margin/top = 24.0
-margin/right = 24.0
-margin/bottom = 88.0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = 24.0
+margin_top = 24.0
+margin_right = 100.0
+margin_bottom = -88.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
 custom_constants/vseparation = 24
 custom_constants/hseparation = 140
 columns = 2
 
-[node name="PlayerNameLabel" type="Label" parent="SettingsPanel/GridContainer"]
+[node name="PlayerNameLabel" type="Label" parent="SettingsPanel/GridContainer" index="0"]
 
-focus/ignore_mouse = true
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 0
-margin/left = 0.0
-margin/top = 6.0
-margin/right = 283.0
-margin/bottom = 33.0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_right = 283.0
+margin_bottom = 27.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+mouse_filter = 1
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 0
 custom_fonts/font = ExtResource( 2 )
 text = "Player name:"
 percent_visible = 1.0
 lines_skipped = 0
 max_lines_visible = -1
 
-[node name="PlayerNameLineEdit" type="LineEdit" parent="SettingsPanel/GridContainer"]
+[node name="PlayerNameLineEdit" type="LineEdit" parent="SettingsPanel/GridContainer" index="1"]
 
-rect/min_size = Vector2( 400, 40 )
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 423.0
-margin/top = 0.0
-margin/right = 823.0
-margin/bottom = 40.0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 423.0
+margin_right = 823.0
+margin_bottom = 40.0
+rect_min_size = Vector2( 400, 40 )
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+focus_mode = 2
+mouse_filter = 0
+mouse_default_cursor_shape = 1
+size_flags_horizontal = 1
+size_flags_vertical = 1
 custom_fonts/font = ExtResource( 2 )
-placeholder/alpha = 0.6
 max_length = 20
 focus_mode = 2
-caret/caret_blink = false
-caret/caret_blink_speed = 0.65
+context_menu_enabled = true
+placeholder_alpha = 0.6
+caret_blink = true
+caret_blink_speed = 0.65
+caret_position = 0
 
-[node name="PlayerColorLabel" type="Label" parent="SettingsPanel/GridContainer"]
+[node name="PlayerColorLabel" type="Label" parent="SettingsPanel/GridContainer" index="2"]
 
-focus/ignore_mouse = true
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 0
-margin/left = 0.0
-margin/top = 70.0
-margin/right = 283.0
-margin/bottom = 97.0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_top = 64.0
+margin_right = 283.0
+margin_bottom = 91.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+mouse_filter = 1
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 0
 custom_fonts/font = ExtResource( 2 )
 text = "Player color:"
 percent_visible = 1.0
 lines_skipped = 0
 max_lines_visible = -1
 
-[node name="PlayerColorScrollBar" type="HScrollBar" parent="SettingsPanel/GridContainer"]
+[node name="PlayerColorScrollBar" type="HScrollBar" parent="SettingsPanel/GridContainer" index="3"]
 
-rect/min_size = Vector2( 400, 40 )
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 423.0
-margin/top = 64.0
-margin/right = 823.0
-margin/bottom = 104.0
-range/min = 0.0
-range/max = 255.0
-range/step = 16.0
-range/page = 32.0
-range/value = 0.0
-range/exp_edit = false
-range/rounded = false
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 423.0
+margin_top = 64.0
+margin_right = 823.0
+margin_bottom = 104.0
+rect_min_size = Vector2( 400, 40 )
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
+min_value = 0.0
+max_value = 255.0
+step = 16.0
+page = 32.0
+value = 0.0
+exp_edit = false
+rounded = false
 custom_step = -1.0
 
-[node name="ControllerTypeLabel" type="Label" parent="SettingsPanel/GridContainer"]
+[node name="ControllerTypeLabel" type="Label" parent="SettingsPanel/GridContainer" index="4"]
 
-focus/ignore_mouse = true
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 0
-margin/left = 0.0
-margin/top = 131.0
-margin/right = 283.0
-margin/bottom = 158.0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_top = 128.0
+margin_right = 283.0
+margin_bottom = 155.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+mouse_filter = 1
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 0
 custom_fonts/font = ExtResource( 2 )
 text = "Controller type:"
 percent_visible = 1.0
 lines_skipped = 0
 max_lines_visible = -1
 
-[node name="ControllerButtonArray" type="HButtonArray" parent="SettingsPanel/GridContainer"]
+[node name="ControllerTypeContainer" type="HBoxContainer" parent="SettingsPanel/GridContainer" index="5"]
 
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 423.0
-margin/top = 128.0
-margin/right = 823.0
-margin/bottom = 161.0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 423.0
+margin_top = 128.0
+margin_right = 823.0
+margin_bottom = 161.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+mouse_filter = 1
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
+alignment = 0
+_sections_unfolded = [ "Rect", "Size Flags" ]
+
+[node name="ControllerTypeButton1" type="Button" parent="SettingsPanel/GridContainer/ControllerTypeContainer" index="0"]
+
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_right = 198.0
+margin_bottom = 33.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+focus_mode = 2
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 3
+size_flags_vertical = 1
+toggle_mode = true
+enabled_focus_mode = 2
+shortcut = null
+group = SubResource( 2 )
+text = "Buttons"
 flat = false
-button/count = 2
-button/min_button_size = -1.0
-button/align = 4
-button/0/text = "Buttons"
-button/0/tooltip = ""
-button/0/icon = null
-button/1/text = "Joystick"
-button/1/tooltip = ""
-button/1/icon = null
-button/selected = 0
+align = 1
+_sections_unfolded = [ "Rect", "Size Flags", "custom_colors", "custom_constants", "custom_icons", "custom_styles" ]
 
-[node name="SensitivityLabel" type="Label" parent="SettingsPanel/GridContainer"]
+[node name="ControllerTypeButton2" type="Button" parent="SettingsPanel/GridContainer/ControllerTypeContainer" index="1"]
 
-focus/ignore_mouse = true
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 0
-margin/left = 0.0
-margin/top = 191.0
-margin/right = 283.0
-margin/bottom = 218.0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 202.0
+margin_right = 400.0
+margin_bottom = 33.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+focus_mode = 2
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 3
+size_flags_vertical = 1
+toggle_mode = true
+enabled_focus_mode = 2
+shortcut = null
+group = SubResource( 2 )
+text = "Joystick"
+flat = false
+align = 1
+_sections_unfolded = [ "Rect", "Size Flags", "custom_colors", "custom_constants", "custom_icons", "custom_styles" ]
+
+[node name="SensitivityLabel" type="Label" parent="SettingsPanel/GridContainer" index="6"]
+
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_top = 185.0
+margin_right = 283.0
+margin_bottom = 212.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+mouse_filter = 1
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 0
 text = "Joystick sensitivity:"
 percent_visible = 1.0
 lines_skipped = 0
 max_lines_visible = -1
 
-[node name="SensitivityScrollBar" type="HScrollBar" parent="SettingsPanel/GridContainer"]
+[node name="SensitivityScrollBar" type="HScrollBar" parent="SettingsPanel/GridContainer" index="7"]
 
-rect/min_size = Vector2( 400, 40 )
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 423.0
-margin/top = 185.0
-margin/right = 823.0
-margin/bottom = 225.0
-range/min = 0.0
-range/max = 1.0
-range/step = 0.1
-range/page = 0.125
-range/value = 0.0
-range/exp_edit = false
-range/rounded = false
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 423.0
+margin_top = 185.0
+margin_right = 823.0
+margin_bottom = 225.0
+rect_min_size = Vector2( 400, 40 )
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
+min_value = 0.0
+max_value = 1.0
+step = 0.1
+page = 0.125
+value = 0.0
+exp_edit = false
+rounded = false
 custom_step = -1.0
 
-[node name="OKButton" type="Button" parent="SettingsPanel"]
+[node name="OKButton" type="Button" parent="SettingsPanel" index="1"]
 
-anchor/left = 1
-anchor/top = 1
-anchor/right = 1
-anchor/bottom = 1
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 216.0
-margin/top = 64.0
-margin/right = 26.0
-margin/bottom = 24.0
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = -216.0
+margin_top = -64.0
+margin_right = -26.0
+margin_bottom = -24.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+focus_mode = 2
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
 custom_fonts/font = ExtResource( 2 )
 toggle_mode = false
 enabled_focus_mode = 2
 shortcut = null
+group = null
 text = "OK"
 flat = false
+align = 1
 
-[node name="ConnectPanel" type="PopupPanel" parent="."]
+[node name="ConnectPanel" type="PopupPanel" parent="." index="4"]
 
-visibility/visible = false
-anchor/right = 1
-anchor/bottom = 1
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 79.0
-margin/top = 119.0
-margin/right = 81.0
-margin/bottom = 81.0
-popup/exclusive = true
+editor/display_folded = true
+visible = false
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = 79.0
+margin_top = 119.0
+margin_right = -81.0
+margin_bottom = -81.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
+popup_exclusive = true
 
-[node name="GameList" type="ItemList" parent="ConnectPanel"]
+[node name="GameList" type="ItemList" parent="ConnectPanel" index="0"]
 
-anchor/right = 1
-anchor/bottom = 1
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 24.0
-margin/top = 24.0
-margin/right = 24.0
-margin/bottom = 88.0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = 24.0
+margin_top = 24.0
+margin_right = -24.0
+margin_bottom = -88.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = true
+focus_mode = 2
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
 custom_constants/vseparation = 16
 custom_constants/line_separation = 0
+items = [  ]
+select_mode = 0
+allow_reselect = false
+icon_mode = 1
+fixed_icon_size = Vector2( 0, 0 )
 
-[node name="ConnectButton" type="Button" parent="ConnectPanel"]
+[node name="ConnectButton" type="Button" parent="ConnectPanel" index="1"]
 
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 648.0
-margin/top = 336.0
-margin/right = 838.0
-margin/bottom = 376.0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 648.0
+margin_top = 336.0
+margin_right = 838.0
+margin_bottom = 376.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+focus_mode = 2
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
 custom_fonts/font = ExtResource( 2 )
 toggle_mode = false
 enabled_focus_mode = 2
 shortcut = null
+group = null
 text = "Connect"
 flat = false
+align = 1
 
-[node name="CancelButton" type="Button" parent="ConnectPanel"]
+[node name="CancelButton" type="Button" parent="ConnectPanel" index="2"]
 
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 432.0
-margin/top = 336.0
-margin/right = 622.0
-margin/bottom = 376.0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 432.0
+margin_top = 336.0
+margin_right = 622.0
+margin_bottom = 376.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+focus_mode = 2
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
 custom_fonts/font = ExtResource( 2 )
 toggle_mode = false
 enabled_focus_mode = 2
 shortcut = null
+group = null
 text = "Cancel"
 flat = false
+align = 1
 
-[node name="StatusLabel" type="Label" parent="ConnectPanel"]
+[node name="StatusLabel" type="Label" parent="ConnectPanel" index="3"]
 
-anchor/right = 1
-anchor/bottom = 1
-focus/ignore_mouse = true
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 0
-margin/left = 30.0
-margin/top = 336.0
-margin/right = 444.0
-margin/bottom = 24.0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = 30.0
+margin_top = 336.0
+margin_right = -444.0
+margin_bottom = -24.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+mouse_filter = 1
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 0
 custom_fonts/font = ExtResource( 2 )
 percent_visible = 1.0
 lines_skipped = 0
 max_lines_visible = -1
 
-[node name="IntegrityBar" parent="." instance=ExtResource( 3 )]
+[node name="IntegrityBar" parent="." index="5" instance=ExtResource( 3 )]
 
-margin/left = 79.0
-margin/top = 79.0
-margin/right = 479.0
-margin/bottom = 111.0
+margin_left = 79.0
+margin_top = 79.0
+margin_right = 479.0
+margin_bottom = 111.0
 
-[node name="TemperatureBar" parent="." instance=ExtResource( 3 )]
+[node name="TemperatureBar" parent="." index="6" instance=ExtResource( 3 )]
 
-margin/left = 543.0
-margin/top = 79.0
-margin/right = 943.0
-margin/bottom = 111.0
+margin_left = 543.0
+margin_top = 79.0
+margin_right = 943.0
+margin_bottom = 111.0
 
-[node name="IntegrityIcon" type="Sprite" parent="."]
+[node name="IntegrityIcon" type="Sprite" parent="." index="7"]
 
-transform/pos = Vector2( 47, 95 )
-transform/scale = Vector2( 0.25, 0.25 )
+position = Vector2( 47, 95 )
+scale = Vector2( 0.25, 0.25 )
 texture = ExtResource( 4 )
 
-[node name="TemperatureIcon" type="Sprite" parent="."]
+[node name="TemperatureIcon" type="Sprite" parent="." index="8"]
 
-transform/pos = Vector2( 975.75, 95 )
-transform/scale = Vector2( 0.25, 0.25 )
+position = Vector2( 975.75, 95 )
+scale = Vector2( 0.25, 0.25 )
 texture = ExtResource( 5 )
 
-[node name="AboutPanel" type="PopupPanel" parent="."]
+[node name="AboutPanel" type="PopupPanel" parent="." index="9"]
 
-visibility/visible = false
-anchor/right = 1
-anchor/bottom = 1
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 79.0
-margin/top = 119.0
-margin/right = 81.0
-margin/bottom = 81.0
-popup/exclusive = true
+editor/display_folded = true
+visible = false
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = 79.0
+margin_top = 119.0
+margin_right = -81.0
+margin_bottom = -81.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
+popup_exclusive = true
 
-[node name="OKButton" type="Button" parent="AboutPanel"]
+[node name="OKButton" type="Button" parent="AboutPanel" index="0"]
 
-anchor/left = 1
-anchor/top = 1
-anchor/right = 1
-anchor/bottom = 1
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 216.0
-margin/top = 64.0
-margin/right = 26.0
-margin/bottom = 24.0
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = -216.0
+margin_top = -64.0
+margin_right = -26.0
+margin_bottom = -24.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+focus_mode = 2
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
 custom_fonts/font = ExtResource( 2 )
 toggle_mode = false
 enabled_focus_mode = 2
 shortcut = null
+group = null
 text = "OK"
 flat = false
+align = 1
 
-[node name="LogoTextureFrame" type="TextureFrame" parent="AboutPanel"]
+[node name="LogoTextureFrame" type="TextureRect" parent="AboutPanel" index="1"]
 
-rect/scale = Vector2( 0.4, 0.4 )
-focus/ignore_mouse = true
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 23.0
-margin/top = 23.0
-margin/right = 2071.0
-margin/bottom = 267.0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 23.0
+margin_top = 23.0
+margin_right = 2071.0
+margin_bottom = 267.0
+rect_scale = Vector2( 0.4, 0.4 )
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+mouse_filter = 1
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
 texture = ExtResource( 6 )
 stretch_mode = 0
 
-[node name="RichTextLabel" type="RichTextLabel" parent="AboutPanel"]
+[node name="RichTextLabel" type="RichTextLabel" parent="AboutPanel" index="2"]
 
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 24.0
-margin/top = 140.0
-margin/right = 840.0
-margin/bottom = 320.0
-bbcode/enabled = false
-bbcode/bbcode = "Mobile controller application for Hyper Ultra Astronautics - A local multiplayer space arena shoot'em up on PC.
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 24.0
+margin_top = 140.0
+margin_right = 840.0
+margin_bottom = 320.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = true
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
+bbcode_enabled = false
+bbcode_text = "Mobile controller application for Hyper Ultra Astronautics - A local multiplayer space arena shoot'em up on PC.
 
 Copyright 2018 FRACTiLE Games
 http://www.fractilegames.com"
 visible_characters = -1
 percent_visible = 1.0
+meta_underlined = true
+tab_size = 4
+text = "Mobile controller application for Hyper Ultra Astronautics - A local multiplayer space arena shoot'em up on PC.
 
-[node name="LinkButton" type="Button" parent="AboutPanel"]
+Copyright 2018 FRACTiLE Games
+http://www.fractilegames.com"
+scroll_active = true
+scroll_following = false
+selection_enabled = false
+override_selected_font_color = false
 
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 24.0
-margin/top = 336.0
-margin/right = 216.0
-margin/bottom = 376.0
+[node name="LinkButton" type="Button" parent="AboutPanel" index="3"]
+
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 24.0
+margin_top = 336.0
+margin_right = 216.0
+margin_bottom = 376.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+focus_mode = 2
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
 toggle_mode = false
 enabled_focus_mode = 2
 shortcut = null
+group = null
 text = "Website"
 flat = false
+align = 1
 
-[node name="AboutButton" type="Button" parent="."]
+[node name="AboutButton" type="Button" parent="." index="10"]
 
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 959.0
-margin/top = 23.0
-margin/right = 999.0
-margin/bottom = 63.0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 959.0
+margin_top = 23.0
+margin_right = 999.0
+margin_bottom = 63.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+focus_mode = 2
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
 toggle_mode = false
 enabled_focus_mode = 2
 shortcut = null
+group = null
 text = "?"
 flat = false
+align = 1
 
-[node name="PrivacyPanel" type="PopupPanel" parent="."]
+[node name="PrivacyPanel" type="PopupPanel" parent="." index="11"]
 
 editor/display_folded = true
-visibility/visible = false
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 79.0
-margin/top = 119.0
-margin/right = 943.0
-margin/bottom = 519.0
-popup/exclusive = true
+visible = false
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 79.0
+margin_top = 119.0
+margin_right = 943.0
+margin_bottom = 519.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
+popup_exclusive = true
 
-[node name="RichTextLabel" type="RichTextLabel" parent="PrivacyPanel"]
+[node name="RichTextLabel" type="RichTextLabel" parent="PrivacyPanel" index="0"]
 
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 24.0
-margin/top = 16.0
-margin/right = 840.0
-margin/bottom = 319.0
-bbcode/enabled = false
-bbcode/bbcode = "PRIVACY POLICY
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 24.0
+margin_top = 16.0
+margin_right = 840.0
+margin_bottom = 319.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = true
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
+bbcode_enabled = false
+bbcode_text = "PRIVACY POLICY
 
 This application does not collect or process any personal data other than device network address which is needed to connect to the game.
 
 Your device's network address and the player name you may have set will be transmitted unencrypted in the current Wi-Fi network and will be accessed by game servers running in same subnetwork."
 visible_characters = -1
 percent_visible = 1.0
+meta_underlined = true
+tab_size = 4
+text = "PRIVACY POLICY
 
-[node name="AcceptButton" type="Button" parent="PrivacyPanel"]
+This application does not collect or process any personal data other than device network address which is needed to connect to the game.
 
-anchor/left = 1
-anchor/top = 1
-anchor/right = 1
-anchor/bottom = 1
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 216.0
-margin/top = 64.0
-margin/right = 26.0
-margin/bottom = 24.0
+Your device's network address and the player name you may have set will be transmitted unencrypted in the current Wi-Fi network and will be accessed by game servers running in same subnetwork."
+scroll_active = true
+scroll_following = false
+selection_enabled = false
+override_selected_font_color = false
+
+[node name="AcceptButton" type="Button" parent="PrivacyPanel" index="1"]
+
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = -216.0
+margin_top = -64.0
+margin_right = -26.0
+margin_bottom = -24.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+focus_mode = 2
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
 custom_fonts/font = ExtResource( 2 )
 toggle_mode = false
 enabled_focus_mode = 2
 shortcut = null
+group = null
 text = "Accept"
 flat = false
+align = 1
 
-[node name="RejectButton" type="Button" parent="PrivacyPanel"]
+[node name="RejectButton" type="Button" parent="PrivacyPanel" index="2"]
 
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 24.0
-margin/top = 336.0
-margin/right = 216.0
-margin/bottom = 376.0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 24.0
+margin_top = 336.0
+margin_right = 216.0
+margin_bottom = 376.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+focus_mode = 2
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
 toggle_mode = false
 enabled_focus_mode = 2
 shortcut = null
+group = null
 text = "Reject"
 flat = false
+align = 1
 
-[node name="Flash" type="Sprite" parent="."]
+[node name="ManualConnectPanel" type="PopupPanel" parent="." index="12"]
 
-visibility/blend_mode = 1
-transform/pos = Vector2( 509, 299 )
-z/z = 100
-texture = ExtResource( 7 )
-modulate = Color( 0, 0, 0, 1 )
+editor/display_folded = true
+visible = false
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 79.0
+margin_top = 119.0
+margin_right = 943.0
+margin_bottom = 519.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
+popup_exclusive = false
 
-[node name="ManualConnectPanel" type="PopupPanel" parent="."]
+[node name="AddressLabel" type="Label" parent="ManualConnectPanel" index="0"]
 
-visibility/visible = false
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 79.0
-margin/top = 119.0
-margin/right = 943.0
-margin/bottom = 519.0
-popup/exclusive = false
-
-[node name="AddressLabel" type="Label" parent="ManualConnectPanel"]
-
-focus/ignore_mouse = true
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 0
-margin/left = 24.0
-margin/top = 30.0
-margin/right = 307.0
-margin/bottom = 57.0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 24.0
+margin_top = 30.0
+margin_right = 307.0
+margin_bottom = 57.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+mouse_filter = 1
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 0
 text = "Game host address:"
 percent_visible = 1.0
 lines_skipped = 0
 max_lines_visible = -1
 
-[node name="AddressLineEdit" type="LineEdit" parent="ManualConnectPanel"]
+[node name="AddressLineEdit" type="LineEdit" parent="ManualConnectPanel" index="1"]
 
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 442.0
-margin/top = 24.0
-margin/right = 842.0
-margin/bottom = 64.0
-placeholder/alpha = 0.6
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 442.0
+margin_top = 24.0
+margin_right = 842.0
+margin_bottom = 64.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+focus_mode = 2
+mouse_filter = 0
+mouse_default_cursor_shape = 1
+size_flags_horizontal = 1
+size_flags_vertical = 1
 max_length = 16
 focus_mode = 2
-caret/caret_blink = false
-caret/caret_blink_speed = 0.65
+context_menu_enabled = true
+placeholder_alpha = 0.6
+caret_blink = true
+caret_blink_speed = 0.65
+caret_position = 0
 
-[node name="InstructionLabel" type="RichTextLabel" parent="ManualConnectPanel"]
+[node name="InstructionLabel" type="RichTextLabel" parent="ManualConnectPanel" index="2"]
 
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 24.0
-margin/top = 90.0
-margin/right = 840.0
-margin/bottom = 310.0
-bbcode/enabled = false
-bbcode/bbcode = "Enter the local IP address of the PC running Hyper Ultra Astronautics above.
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 24.0
+margin_top = 90.0
+margin_right = 840.0
+margin_bottom = 310.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = true
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
+bbcode_enabled = false
+bbcode_text = "Enter the local IP address of the PC running Hyper Ultra Astronautics above.
 
 You can see the address at the top of the screen when a new match is started on the PC. Note: Both the PC and mobile devices must be connected directly to the same sub-network (e.g. Wi-Fi access point)."
 visible_characters = -1
 percent_visible = 1.0
+meta_underlined = true
+tab_size = 4
+text = "Enter the local IP address of the PC running Hyper Ultra Astronautics above.
 
-[node name="ConnectButton" type="Button" parent="ManualConnectPanel"]
+You can see the address at the top of the screen when a new match is started on the PC. Note: Both the PC and mobile devices must be connected directly to the same sub-network (e.g. Wi-Fi access point)."
+scroll_active = true
+scroll_following = false
+selection_enabled = false
+override_selected_font_color = false
 
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 650.0
-margin/top = 336.0
-margin/right = 840.0
-margin/bottom = 376.0
+[node name="ConnectButton" type="Button" parent="ManualConnectPanel" index="3"]
+
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 650.0
+margin_top = 336.0
+margin_right = 840.0
+margin_bottom = 376.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+focus_mode = 2
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
 toggle_mode = false
 enabled_focus_mode = 2
 shortcut = null
+group = null
 text = "Connect"
 flat = false
+align = 1
 
-[node name="CancelButton" type="Button" parent="ManualConnectPanel"]
+[node name="CancelButton" type="Button" parent="ManualConnectPanel" index="4"]
 
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 432.0
-margin/top = 336.0
-margin/right = 622.0
-margin/bottom = 376.0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 432.0
+margin_top = 336.0
+margin_right = 622.0
+margin_bottom = 376.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+focus_mode = 2
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
 toggle_mode = false
 enabled_focus_mode = 2
 shortcut = null
+group = null
 text = "Cancel"
 flat = false
+align = 1
 
-[node name="StatusLabel" type="Label" parent="ManualConnectPanel"]
+[node name="StatusLabel" type="Label" parent="ManualConnectPanel" index="5"]
 
-anchor/right = 1
-anchor/bottom = 1
-focus/ignore_mouse = true
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 0
-margin/left = 30.0
-margin/top = 336.0
-margin/right = 444.0
-margin/bottom = 24.0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = 30.0
+margin_top = 336.0
+margin_right = -444.0
+margin_bottom = -24.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+mouse_filter = 1
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 0
 percent_visible = 1.0
 lines_skipped = 0
 max_lines_visible = -1
+
+[node name="Flash" type="Sprite" parent="." index="13"]
+
+modulate = Color( 0, 0, 0, 1 )
+material = SubResource( 3 )
+position = Vector2( 507, 299 )
+z_index = 100
+texture = ExtResource( 7 )
+_sections_unfolded = [ "Animation", "Material", "Offset", "Region", "Visibility" ]
 
 

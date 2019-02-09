@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=1]
+[gd_scene load_steps=7 format=2]
 
 [ext_resource path="res://leftbutton.png" type="Texture" id=1]
 [ext_resource path="res://rightbutton.png" type="Texture" id=2]
@@ -7,10 +7,10 @@
 
 [sub_resource type="StyleBoxEmpty" id=1]
 
-content_margin/left = -1.0
-content_margin/right = -1.0
-content_margin/top = -1.0
-content_margin/bottom = -1.0
+content_margin_left = -1.0
+content_margin_right = -1.0
+content_margin_top = -1.0
+content_margin_bottom = -1.0
 
 [sub_resource type="GDScript" id=2]
 
@@ -21,13 +21,12 @@ extends Panel
 var controller_active = false
 var ui_color = Color(1.0, 1.0, 1.0, 1.0)
 var ui_color_pressed = Color(1.0, 1.0, 1.0, 1.0)
-var buttons = IntArray()
+var buttons = PoolIntArray()
 const BUTTON_LEFT = 0
 const BUTTON_RIGHT = 1
 const BUTTON_THRUST = 2
 const BUTTON_SHOOT = 3
 const BUTTON_COUNT = 4
-var presses = Array()
 
 
 func _ready():
@@ -94,16 +93,16 @@ func _input(event):
 		return
 	
 	event = make_input_local(event)
-	if((event.type == InputEvent.SCREEN_TOUCH or event.type == InputEvent.SCREEN_DRAG) and event.pos.y >= 0):
-		if(event.type == InputEvent.SCREEN_DRAG or event.pressed):
-			if(event.pos.x < 190 or event.pos.x > 1024 - 190):
+	if((event is InputEventScreenTouch or event is InputEventScreenDrag) and event.position.y >= 0):
+		if(event is InputEventScreenDrag or event.pressed):
+			if(event.position.x < 190 or event.position.x > 1024 - 190):
 				# Shoot button
 				handle_button_press(BUTTON_SHOOT, event.index)
-			else:			
-				if(event.pos.y < 255):
+			else:
+				if(event.position.y < 255):
 					# Thrust button
 					handle_button_press(BUTTON_THRUST, event.index)
-				elif(event.pos.x > 512):
+				elif(event.position.x > 512):
 					# Right button
 					handle_button_press(BUTTON_RIGHT, event.index)
 				else:
@@ -111,8 +110,24 @@ func _input(event):
 					handle_button_press(BUTTON_LEFT, event.index)
 		elif (not event.pressed):
 			handle_button_release(event.index)
-			
 		update_button_states()
+	elif(event is InputEventJoypadButton):
+		#get_node(\"Label\").set_text(\"Button \" + str(event.button_index) + \" state \" + str(event.pressed))
+		var button = -1
+		if(event.button_index == JOY_SONY_X):
+			button = BUTTON_SHOOT
+		elif(event.button_index == JOY_DPAD_UP):
+			button = BUTTON_THRUST
+		elif(event.button_index == JOY_DPAD_LEFT):
+			button = BUTTON_LEFT
+		elif(event.button_index == JOY_DPAD_RIGHT):
+			button = BUTTON_RIGHT
+		if(button >= 0):
+			if(event.pressed):
+				handle_button_press(button, button)
+			else:
+				handle_button_release(button)
+			update_button_states()
 
 
 func get_buttons():
@@ -135,42 +150,47 @@ func get_aim_dir():
 
 [node name="Panel" type="Panel"]
 
-focus/ignore_mouse = false
-focus/stop_mouse = true
-size_flags/horizontal = 2
-size_flags/vertical = 2
-margin/left = 0.0
-margin/top = 160.0
-margin/right = 1024.0
-margin/bottom = 600.0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_top = 160.0
+margin_right = 1024.0
+margin_bottom = 600.0
+rect_pivot_offset = Vector2( 0, 0 )
+rect_clip_content = false
+mouse_filter = 0
+mouse_default_cursor_shape = 0
+size_flags_horizontal = 1
+size_flags_vertical = 1
 custom_styles/panel = SubResource( 1 )
-script/script = SubResource( 2 )
+script = SubResource( 2 )
 
-[node name="LeftButton" type="Sprite" parent="."]
+[node name="LeftButton" type="Sprite" parent="." index="0"]
 
-transform/pos = Vector2( 349.5, 345 )
-transform/scale = Vector2( 1.01, 1 )
+position = Vector2( 349.5, 345 )
+scale = Vector2( 1.01, 1 )
 texture = ExtResource( 1 )
 
-[node name="RightButton" type="Sprite" parent="."]
+[node name="RightButton" type="Sprite" parent="." index="1"]
 
-transform/pos = Vector2( 673, 344 )
-transform/scale = Vector2( 1.01, 1 )
+position = Vector2( 673, 344 )
+scale = Vector2( 1.01, 1 )
 texture = ExtResource( 2 )
 
-[node name="ThrustButton" type="Sprite" parent="."]
+[node name="ThrustButton" type="Sprite" parent="." index="2"]
 
-transform/pos = Vector2( 512, 169 )
+position = Vector2( 512, 169 )
 texture = ExtResource( 3 )
 
-[node name="ShootButtonL" type="Sprite" parent="."]
+[node name="ShootButtonL" type="Sprite" parent="." index="3"]
 
-transform/pos = Vector2( 96, 257 )
+position = Vector2( 96, 257 )
 texture = ExtResource( 4 )
 
-[node name="ShootButtonR" type="Sprite" parent="."]
+[node name="ShootButtonR" type="Sprite" parent="." index="4"]
 
-transform/pos = Vector2( 928, 256 )
+position = Vector2( 928, 256 )
 texture = ExtResource( 4 )
 
 
