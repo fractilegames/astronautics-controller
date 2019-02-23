@@ -10,5 +10,4 @@ Notes:
 
 - The exported application will need "internet" permission set.
 
-This source code is released under [MIT license](https://opensource.org/licenses/MIT). The font used is Anita Semi-Square by Gustavo Paz L. (CC BY-SA 4.0).
-
+This source code is released under [MIT license](https://opensource.org/licenses/MIT). The app font is Orbitron Bold by [Matt McInerney](http://pixelspread.com) (SIL OFL 1.1).
