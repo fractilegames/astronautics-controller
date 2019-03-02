@@ -1,12 +1,11 @@
-[gd_scene load_steps=9 format=1]
+[gd_scene load_steps=8 format=1]
 
 [ext_resource path="res://controller.thm" type="Theme" id=1]
-[ext_resource path="res://font.fnt" type="BitmapFont" id=2]
-[ext_resource path="res://status_bar.tscn" type="PackedScene" id=3]
-[ext_resource path="res://integrity.png" type="Texture" id=4]
-[ext_resource path="res://temperature.png" type="Texture" id=5]
-[ext_resource path="res://logo.png" type="Texture" id=6]
-[ext_resource path="res://flash.png" type="Texture" id=7]
+[ext_resource path="res://status_bar.tscn" type="PackedScene" id=2]
+[ext_resource path="res://integrity.png" type="Texture" id=3]
+[ext_resource path="res://temperature.png" type="Texture" id=4]
+[ext_resource path="res://logo.png" type="Texture" id=5]
+[ext_resource path="res://flash.png" type="Texture" id=6]
 
 [sub_resource type="GDScript" id=1]
 
@@ -714,9 +713,8 @@ size_flags/horizontal = 2
 size_flags/vertical = 0
 margin/left = 0.0
 margin/top = 6.0
-margin/right = 283.0
+margin/right = 266.0
 margin/bottom = 33.0
-custom_fonts/font = ExtResource( 2 )
 text = "Player name:"
 percent_visible = 1.0
 lines_skipped = 0
@@ -729,11 +727,10 @@ focus/ignore_mouse = false
 focus/stop_mouse = true
 size_flags/horizontal = 2
 size_flags/vertical = 2
-margin/left = 423.0
+margin/left = 406.0
 margin/top = 0.0
-margin/right = 823.0
+margin/right = 806.0
 margin/bottom = 40.0
-custom_fonts/font = ExtResource( 2 )
 placeholder/alpha = 0.6
 max_length = 20
 focus_mode = 2
@@ -748,9 +745,8 @@ size_flags/horizontal = 2
 size_flags/vertical = 0
 margin/left = 0.0
 margin/top = 70.0
-margin/right = 283.0
+margin/right = 266.0
 margin/bottom = 97.0
-custom_fonts/font = ExtResource( 2 )
 text = "Player color:"
 percent_visible = 1.0
 lines_skipped = 0
@@ -763,9 +759,9 @@ focus/ignore_mouse = false
 focus/stop_mouse = true
 size_flags/horizontal = 2
 size_flags/vertical = 2
-margin/left = 423.0
+margin/left = 406.0
 margin/top = 64.0
-margin/right = 823.0
+margin/right = 806.0
 margin/bottom = 104.0
 range/min = 0.0
 range/max = 255.0
@@ -783,10 +779,9 @@ focus/stop_mouse = true
 size_flags/horizontal = 2
 size_flags/vertical = 0
 margin/left = 0.0
-margin/top = 131.0
-margin/right = 283.0
-margin/bottom = 158.0
-custom_fonts/font = ExtResource( 2 )
+margin/top = 132.0
+margin/right = 266.0
+margin/bottom = 159.0
 text = "Controller type:"
 percent_visible = 1.0
 lines_skipped = 0
@@ -798,10 +793,10 @@ focus/ignore_mouse = false
 focus/stop_mouse = true
 size_flags/horizontal = 2
 size_flags/vertical = 2
-margin/left = 423.0
+margin/left = 406.0
 margin/top = 128.0
-margin/right = 823.0
-margin/bottom = 161.0
+margin/right = 806.0
+margin/bottom = 164.0
 flat = false
 button/count = 2
 button/min_button_size = -1.0
@@ -821,9 +816,9 @@ focus/stop_mouse = true
 size_flags/horizontal = 2
 size_flags/vertical = 0
 margin/left = 0.0
-margin/top = 191.0
-margin/right = 283.0
-margin/bottom = 218.0
+margin/top = 193.0
+margin/right = 266.0
+margin/bottom = 223.0
 text = "Joystick sensitivity:"
 percent_visible = 1.0
 lines_skipped = 0
@@ -836,10 +831,10 @@ focus/ignore_mouse = false
 focus/stop_mouse = true
 size_flags/horizontal = 2
 size_flags/vertical = 2
-margin/left = 423.0
-margin/top = 185.0
-margin/right = 823.0
-margin/bottom = 225.0
+margin/left = 406.0
+margin/top = 188.0
+margin/right = 806.0
+margin/bottom = 228.0
 range/min = 0.0
 range/max = 1.0
 range/step = 0.1
@@ -863,7 +858,6 @@ margin/left = 216.0
 margin/top = 64.0
 margin/right = 26.0
 margin/bottom = 24.0
-custom_fonts/font = ExtResource( 2 )
 toggle_mode = false
 enabled_focus_mode = 2
 shortcut = null
@@ -910,7 +904,6 @@ margin/left = 648.0
 margin/top = 336.0
 margin/right = 838.0
 margin/bottom = 376.0
-custom_fonts/font = ExtResource( 2 )
 toggle_mode = false
 enabled_focus_mode = 2
 shortcut = null
@@ -927,7 +920,6 @@ margin/left = 432.0
 margin/top = 336.0
 margin/right = 622.0
 margin/bottom = 376.0
-custom_fonts/font = ExtResource( 2 )
 toggle_mode = false
 enabled_focus_mode = 2
 shortcut = null
@@ -946,19 +938,18 @@ margin/left = 30.0
 margin/top = 336.0
 margin/right = 444.0
 margin/bottom = 24.0
-custom_fonts/font = ExtResource( 2 )
 percent_visible = 1.0
 lines_skipped = 0
 max_lines_visible = -1
 
-[node name="IntegrityBar" parent="." instance=ExtResource( 3 )]
+[node name="IntegrityBar" parent="." instance=ExtResource( 2 )]
 
 margin/left = 79.0
 margin/top = 79.0
 margin/right = 479.0
 margin/bottom = 111.0
 
-[node name="TemperatureBar" parent="." instance=ExtResource( 3 )]
+[node name="TemperatureBar" parent="." instance=ExtResource( 2 )]
 
 margin/left = 543.0
 margin/top = 79.0
@@ -969,13 +960,13 @@ margin/bottom = 111.0
 
 transform/pos = Vector2( 47, 95 )
 transform/scale = Vector2( 0.25, 0.25 )
-texture = ExtResource( 4 )
+texture = ExtResource( 3 )
 
 [node name="TemperatureIcon" type="Sprite" parent="."]
 
 transform/pos = Vector2( 975.75, 95 )
 transform/scale = Vector2( 0.25, 0.25 )
-texture = ExtResource( 5 )
+texture = ExtResource( 4 )
 
 [node name="AboutPanel" type="PopupPanel" parent="."]
 
@@ -1006,7 +997,6 @@ margin/left = 216.0
 margin/top = 64.0
 margin/right = 26.0
 margin/bottom = 24.0
-custom_fonts/font = ExtResource( 2 )
 toggle_mode = false
 enabled_focus_mode = 2
 shortcut = null
@@ -1024,7 +1014,7 @@ margin/left = 23.0
 margin/top = 23.0
 margin/right = 2071.0
 margin/bottom = 267.0
-texture = ExtResource( 6 )
+texture = ExtResource( 5 )
 stretch_mode = 0
 
 [node name="RichTextLabel" type="RichTextLabel" parent="AboutPanel"]
@@ -1041,7 +1031,13 @@ bbcode/enabled = false
 bbcode/bbcode = "Mobile controller application for Hyper Ultra Astronautics - A local multiplayer space arena shoot'em up on PC.
 
 Copyright 2018 FRACTiLE Games
-http://www.fractilegames.com"
+http://www.fractilegames.com
+
+
+
+Made with Godot engine (https://godotengine.org).
+
+Application font by Matt McInerney (http://pixelspread.com)."
 visible_characters = -1
 percent_visible = 1.0
 
@@ -1079,7 +1075,6 @@ flat = false
 
 [node name="PrivacyPanel" type="PopupPanel" parent="."]
 
-editor/display_folded = true
 visibility/visible = false
 focus/ignore_mouse = false
 focus/stop_mouse = true
@@ -1124,7 +1119,6 @@ margin/left = 216.0
 margin/top = 64.0
 margin/right = 26.0
 margin/bottom = 24.0
-custom_fonts/font = ExtResource( 2 )
 toggle_mode = false
 enabled_focus_mode = 2
 shortcut = null
@@ -1150,9 +1144,9 @@ flat = false
 [node name="Flash" type="Sprite" parent="."]
 
 visibility/blend_mode = 1
-transform/pos = Vector2( 509, 299 )
+transform/pos = Vector2( 510, 299 )
 z/z = 100
-texture = ExtResource( 7 )
+texture = ExtResource( 6 )
 modulate = Color( 0, 0, 0, 1 )
 
 [node name="ManualConnectPanel" type="PopupPanel" parent="."]
