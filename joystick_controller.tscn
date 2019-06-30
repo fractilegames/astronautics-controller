@@ -4,13 +4,7 @@
 
 [sub_resource type="StyleBoxEmpty" id=1]
 
-content_margin_left = -1.0
-content_margin_right = -1.0
-content_margin_top = -1.0
-content_margin_bottom = -1.0
-
 [sub_resource type="GDScript" id=2]
-
 script/source = "
 extends Panel
 
@@ -116,7 +110,6 @@ func get_aim_dir():
 "
 
 [sub_resource type="GDScript" id=3]
-
 script/source = "
 extends Node2D
 
@@ -178,34 +171,19 @@ func draw_circle_outline(radius, segments, color, width):
 
 	"
 
-[node name="Panel" type="Panel" index="0"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
+[node name="Panel" type="Panel"]
 margin_top = 160.0
 margin_right = 1024.0
 margin_bottom = 600.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
+rect_pivot_offset = Vector2( 292.307, 90.3011 )
 custom_styles/panel = SubResource( 1 )
 script = SubResource( 2 )
-_sections_unfolded = [ "Material", "Visibility", "custom_styles" ]
 
-[node name="ShootButton" type="Sprite" parent="." index="0"]
-
+[node name="ShootButton" type="Sprite" parent="."]
 position = Vector2( 928, 256 )
 texture = ExtResource( 1 )
-_sections_unfolded = [ "Material", "Transform", "Z Index" ]
 
-[node name="Cursor" type="Node2D" parent="." index="1"]
-
+[node name="Cursor" type="Node2D" parent="."]
 position = Vector2( 252, 242 )
 script = SubResource( 3 )
-
 

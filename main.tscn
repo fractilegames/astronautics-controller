@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=2]
+[gd_scene load_steps=15 format=2]
 
 [ext_resource path="res://controller.theme" type="Theme" id=1]
 [ext_resource path="res://font.font" type="BitmapFont" id=2]
@@ -6,10 +6,12 @@
 [ext_resource path="res://integrity.png" type="Texture" id=4]
 [ext_resource path="res://temperature.png" type="Texture" id=5]
 [ext_resource path="res://logo.png" type="Texture" id=6]
-[ext_resource path="res://flash.png" type="Texture" id=7]
+[ext_resource path="res://missilelock.wav" type="AudioStream" id=7]
+[ext_resource path="res://respawn.wav" type="AudioStream" id=8]
+[ext_resource path="res://disruption.png" type="Texture" id=9]
+[ext_resource path="res://flash.png" type="Texture" id=10]
 
 [sub_resource type="GDScript" id=1]
-
 script/source = "
 extends Panel
 
@@ -21,7 +23,6 @@ var joystick_controller
 var udp
 var data = PoolByteArray()
 var sequence = 0
-var ack = 0
 var timer = 0.0
 var connected_address = \"\"
 var connection_active = false
@@ -31,7 +32,21 @@ var config_sequence_number = 1
 var player_hue = 0
 var background_style
 var flash_intensity = 0.0
-var event_trigger = 0
+var disruption_intensity = 0.0
+var disruption_timer = 0.0
+var event_trigger = -1
+var integrity = -1
+var temperature = -1
+var status_flags = 0
+
+
+const EVENT_DAMAGE = 1
+const EVENT_RESPAWN = 0xfe
+const EVENT_DESTRUCTION = 0xff
+
+const STATUS_FLAG_RESPAWN_REQUEST = 0x01
+const STATUS_FLAG_DISRUPTED = 0x02
+const STATUS_FLAG_TARGETED = 0x04
 
 
 func _ready():
@@ -46,6 +61,7 @@ func _ready():
 		config.set_value(\"settings\", \"player_hue\", 0)
 		config.set_value(\"settings\", \"controller\", 1)
 		config.set_value(\"settings\", \"joystick_sensitivity\", 0.5)
+		config.set_value(\"settings\", \"sound_effects\", true)
 		config.set_value(\"settings\", \"flags\", 0)
 		config.set_value(\"settings\", \"privacy_notice\", 0)
 	
@@ -66,17 +82,18 @@ func _ready():
 	get_node(\"SettingsButton\").connect(\"pressed\", self, \"_on_settings_button_pressed\")
 	get_node(\"ConnectButton\").connect(\"pressed\", self, \"_on_connect_button_pressed\")
 	get_node(\"AboutButton\").connect(\"pressed\", self, \"_on_about_button_pressed\")
-	get_node(\"ConnectPanel/ConnectButton\").connect(\"pressed\", self, \"_on_connect_panel_connect_button_pressed\")
-	get_node(\"ConnectPanel/CancelButton\").connect(\"pressed\", self, \"_on_connect_panel_cancel_button_pressed\")
-	get_node(\"ConnectPanel/GameList\").connect(\"item_selected\", self, \"_on_connect_panel_game_list_item_selected\")
-	get_node(\"ManualConnectPanel/ConnectButton\").connect(\"pressed\", self, \"_on_manual_connect_panel_connect_button_pressed\")
-	get_node(\"ManualConnectPanel/CancelButton\").connect(\"pressed\", self, \"_on_manual_connect_panel_cancel_button_pressed\")
-	get_node(\"SettingsPanel/OKButton\").connect(\"pressed\", self, \"_on_settings_panel_ok_button_pressed\")
-	get_node(\"SettingsPanel/GridContainer/PlayerColorScrollBar\").connect(\"value_changed\", self, \"_on_settings_panel_hue_changed\")
-	get_node(\"AboutPanel/OKButton\").connect(\"pressed\", self, \"_on_about_panel_ok_button_pressed\")
-	get_node(\"AboutPanel/LinkButton\").connect(\"pressed\", self, \"_on_about_panel_link_button_pressed\")
-	get_node(\"PrivacyPanel/AcceptButton\").connect(\"pressed\", self, \"_on_privacy_panel_accept_button_pressed\")
-	get_node(\"PrivacyPanel/RejectButton\").connect(\"pressed\", self, \"_on_privacy_panel_reject_button_pressed\")
+	get_node(\"ConnectPopup/ConnectButton\").connect(\"pressed\", self, \"_on_connect_panel_connect_button_pressed\")
+	get_node(\"ConnectPopup/CancelButton\").connect(\"pressed\", self, \"_on_connect_panel_cancel_button_pressed\")
+	get_node(\"ConnectPopup/GameList\").connect(\"item_selected\", self, \"_on_connect_panel_game_list_item_selected\")
+	get_node(\"ManualConnectPopup/ConnectButton\").connect(\"pressed\", self, \"_on_manual_connect_panel_connect_button_pressed\")
+	get_node(\"ManualConnectPopup/CancelButton\").connect(\"pressed\", self, \"_on_manual_connect_panel_cancel_button_pressed\")
+	get_node(\"SettingsPopup/OKButton\").connect(\"pressed\", self, \"_on_settings_panel_ok_button_pressed\")
+	get_node(\"SettingsPopup/GridContainer/PlayerColorScrollBar\").connect(\"value_changed\", self, \"_on_settings_panel_hue_changed\")
+	get_node(\"SettingsPopup/GridContainer/SoundEffectsButton\").connect(\"pressed\", self, \"_on_settings_panel_sound_button_pressed\")
+	get_node(\"AboutPopup/OKButton\").connect(\"pressed\", self, \"_on_about_panel_ok_button_pressed\")
+	get_node(\"AboutPopup/LinkButton\").connect(\"pressed\", self, \"_on_about_panel_link_button_pressed\")
+	get_node(\"PrivacyPopup/AcceptButton\").connect(\"pressed\", self, \"_on_privacy_panel_accept_button_pressed\")
+	get_node(\"PrivacyPopup/RejectButton\").connect(\"pressed\", self, \"_on_privacy_panel_reject_button_pressed\")
 
 	# Set up default status
 	get_node(\"IntegrityBar\").set_value(1.0)
@@ -93,7 +110,6 @@ func _ready():
 	add_child(connection_timer)
 	connection_timer.set_wait_time(2.0)
 	connection_timer.set_one_shot(true)
-	#connection_timer.set_timer_process_mode(connection_timer.TIMER_PROCESS_FIXED)
 	connection_timer.connect(\"timeout\", self, \"_on_connection_timeout\")
 	
 	# Set up configure message inhibit timer
@@ -101,7 +117,6 @@ func _ready():
 	add_child(configure_timer)
 	configure_timer.set_wait_time(1.0)
 	configure_timer.set_one_shot(true)
-	#configure_timer.set_timer_process_mode(configure_timer.TIMER_PROCESS_FIXED)
 	
 	# Create empty control data message
 	data.push_back(0x41)	# Header (\"ACTL\")
@@ -122,7 +137,7 @@ func _ready():
 	
 	set_player_hue(config.get_value(\"settings\", \"player_hue\", 0.0))
 	
-	# Begin control loop	
+	# Begin control loop
 	set_process(true)
 
 
@@ -130,33 +145,46 @@ func _on_settings_panel_hue_changed(value):
 	set_player_hue(value)
 
 
+func _on_settings_panel_sound_button_pressed():
+	if(get_node(\"SettingsPopup/GridContainer/SoundEffectsButton\").is_pressed()):
+		get_node(\"SettingsPopup/GridContainer/SoundEffectsButton\").set_text(\"On\")
+	else:
+		get_node(\"SettingsPopup/GridContainer/SoundEffectsButton\").set_text(\"Off\")
+
+
 func _on_settings_button_pressed():
-	get_node(\"SettingsPanel/GridContainer/PlayerNameLineEdit\").set_text(config.get_value(\"settings\", \"player_name\", \"Remote\"))
-	get_node(\"SettingsPanel/GridContainer/PlayerColorScrollBar\").set_value(config.get_value(\"settings\", \"player_hue\", 0))
+	get_node(\"SettingsPopup/GridContainer/PlayerNameLineEdit\").set_text(config.get_value(\"settings\", \"player_name\", \"Remote\"))
+	get_node(\"SettingsPopup/GridContainer/PlayerColorScrollBar\").set_value(config.get_value(\"settings\", \"player_hue\", 0))
 	var type_index = config.get_value(\"settings\", \"controller\", 0)
 	if type_index == 1:
-		get_node(\"SettingsPanel/GridContainer/ControllerTypeContainer/ControllerTypeButton2\").set_pressed(true)
+		get_node(\"SettingsPopup/GridContainer/ControllerTypeContainer/ControllerTypeButton2\").set_pressed(true)
 	else:
-		get_node(\"SettingsPanel/GridContainer/ControllerTypeContainer/ControllerTypeButton1\").set_pressed(true)
-	get_node(\"SettingsPanel/GridContainer/SensitivityScrollBar\").set_value(config.get_value(\"settings\", \"joystick_sensitivity\", 0.5))
+		get_node(\"SettingsPopup/GridContainer/ControllerTypeContainer/ControllerTypeButton1\").set_pressed(true)
+	get_node(\"SettingsPopup/GridContainer/SensitivityScrollBar\").set_value(config.get_value(\"settings\", \"joystick_sensitivity\", 0.5))
+	get_node(\"SettingsPopup/GridContainer/SoundEffectsButton\").set_pressed(config.get_value(\"settings\", \"sound_effects\", true))
+	
+	# Fake button press to update button text
+	_on_settings_panel_sound_button_pressed()
 	
 	get_node(\"Controller\").set_active(false)
-	get_node(\"SettingsPanel\").popup()
-	get_node(\"SettingsPanel/OKButton\").grab_focus()
+	get_node(\"SettingsPopup\").popup()
+	get_node(\"SettingsPopup/OKButton\").grab_focus()
 
 
 func _on_settings_panel_ok_button_pressed():
-	var name = get_node(\"SettingsPanel/GridContainer/PlayerNameLineEdit\").get_text()
-	var hue = get_node(\"SettingsPanel/GridContainer/PlayerColorScrollBar\").get_value()
+	var name = get_node(\"SettingsPopup/GridContainer/PlayerNameLineEdit\").get_text()
+	var hue = get_node(\"SettingsPopup/GridContainer/PlayerColorScrollBar\").get_value()
 	var controller = 0
-	if get_node(\"SettingsPanel/GridContainer/ControllerTypeContainer/ControllerTypeButton2\").is_pressed():
+	if get_node(\"SettingsPopup/GridContainer/ControllerTypeContainer/ControllerTypeButton2\").is_pressed():
 		controller = 1
-	var sensitivity = get_node(\"SettingsPanel/GridContainer/SensitivityScrollBar\").get_value()
+	var sensitivity = get_node(\"SettingsPopup/GridContainer/SensitivityScrollBar\").get_value()
+	var sounds = get_node(\"SettingsPopup/GridContainer/SoundEffectsButton\").is_pressed()
 
 	config.set_value(\"settings\", \"controller\", controller)
 	config.set_value(\"settings\", \"player_name\", name)
 	config.set_value(\"settings\", \"player_hue\", hue)
 	config.set_value(\"settings\", \"joystick_sensitivity\", sensitivity)
+	config.set_value(\"settings\", \"sound_effects\", sounds)
 		
 	config.save(\"user://settings.ini\")
 	
@@ -171,7 +199,7 @@ func _on_settings_panel_ok_button_pressed():
 		if(config_sequence_number > 255):
 			config_sequence_number = 1
 		
-	get_node(\"SettingsPanel\").hide()
+	get_node(\"SettingsPopup\").hide()
 	get_node(\"Controller\").set_active(true)
 
 
@@ -180,20 +208,20 @@ func _on_connect_button_pressed():
 	# Show privacy notice pop-up if not yet accepted
 	if(config.get_value(\"settings\", \"privacy_notice\", 0) == 0):
 		get_node(\"Controller\").set_active(false)
-		get_node(\"PrivacyPanel\").popup()
+		get_node(\"PrivacyPopup\").popup()
 		return
 	
 	if(connected_address == \"\"):
 		discover_games()
 		get_node(\"Controller\").set_active(false)
-		get_node(\"ConnectPanel\").popup()
+		get_node(\"ConnectPopup\").popup()
 	else:
 		disconnect_from_game(\"\")
 
 
 func _on_connect_panel_connect_button_pressed():
 	# Get host address from first selected item in game list
-	var list = get_node(\"ConnectPanel/GameList\")
+	var list = get_node(\"ConnectPopup/GameList\")
 	var index = -1
 	for i in range(0, list.get_item_count()):
 		if(list.is_selected(i)):
@@ -205,33 +233,33 @@ func _on_connect_panel_connect_button_pressed():
 		if(host != \"0.0.0.0\"):
 			connect_to_game(list.get_item_text(index), host)
 		else:
-			get_node(\"ManualConnectPanel/StatusLabel\").set_text(\"\")
-			get_node(\"ManualConnectPanel\").popup()
+			get_node(\"ManualConnectPopup/StatusLabel\").set_text(\"\")
+			get_node(\"ManualConnectPopup\").popup()
 
 
 func _on_connect_panel_cancel_button_pressed():
-	get_node(\"ConnectPanel\").hide()
+	get_node(\"ConnectPopup\").hide()
 	get_node(\"Controller\").set_active(true)
 
 
 func _on_connect_panel_game_list_item_selected(var index):
 	# Enable connect button if a game is selected
-	get_node(\"ConnectPanel/ConnectButton\").set_disabled(get_node(\"ConnectPanel/GameList\").get_selected_items().size() == 0)
+	get_node(\"ConnectPopup/ConnectButton\").set_disabled(get_node(\"ConnectPopup/GameList\").get_selected_items().size() == 0)
 
 
 func _on_manual_connect_panel_connect_button_pressed():
 	# Get manually entered host address
-	var address = get_node(\"ManualConnectPanel/AddressLineEdit\").get_text()
+	var address = get_node(\"ManualConnectPopup/AddressLineEdit\").get_text()
 	
 	# Check that entered text is a valid IPv4 address
 	var values = address.split(\".\", false)
 	if values.size() != 4:
-		get_node(\"ManualConnectPanel/StatusLabel\").set_text(\"Invalid address!\")
+		get_node(\"ManualConnectPopup/StatusLabel\").set_text(\"Invalid address!\")
 		return
 	for i in range(0, 4):
 		var conv = values[i].to_int()
 		if conv < 0 and conv > 255:
-			get_node(\"ManualConnectPanel/StatusLabel\").set_text(\"Invalid address!\")
+			get_node(\"ManualConnectPopup/StatusLabel\").set_text(\"Invalid address!\")
 			return
 	
 	# Connect
@@ -239,7 +267,7 @@ func _on_manual_connect_panel_connect_button_pressed():
 
 
 func _on_manual_connect_panel_cancel_button_pressed():
-	get_node(\"ManualConnectPanel\").hide()
+	get_node(\"ManualConnectPopup\").hide()
 
 
 func _on_connection_timeout():
@@ -248,11 +276,11 @@ func _on_connection_timeout():
 
 func _on_about_button_pressed():
 	get_node(\"Controller\").set_active(false)
-	get_node(\"AboutPanel\").popup()
+	get_node(\"AboutPopup\").popup()
 
 
 func _on_about_panel_ok_button_pressed():
-	get_node(\"AboutPanel\").hide()
+	get_node(\"AboutPopup\").hide()
 	get_node(\"Controller\").set_active(true)
 
 func _on_about_panel_link_button_pressed():
@@ -263,14 +291,14 @@ func _on_privacy_panel_accept_button_pressed():
 	config.set_value(\"settings\", \"privacy_notice\", 1)
 	config.save(\"user://settings.ini\")
 	
-	get_node(\"PrivacyPanel\").hide()
+	get_node(\"PrivacyPopup\").hide()
 	get_node(\"Controller\").set_active(true)
 	
 	_on_connect_button_pressed()
 
 
 func _on_privacy_panel_reject_button_pressed():
-	get_node(\"PrivacyPanel\").hide()
+	get_node(\"PrivacyPopup\").hide()
 	get_node(\"Controller\").set_active(true)
 
 
@@ -324,7 +352,7 @@ func _process(delta):
 			
 			timer -= interval
 	
-	update_flash(delta)
+	update_effects(delta)
 
 
 func connect_to_game(title, host):
@@ -342,8 +370,8 @@ func connect_to_game(title, host):
 		# Update UI
 		get_node(\"StatusLabel\").set_text(title)
 		get_node(\"ConnectButton\").set_text(\"Disconnect\")
-		get_node(\"ConnectPanel\").hide()
-		get_node(\"ManualConnectPanel\").hide()
+		get_node(\"ConnectPopup\").hide()
+		get_node(\"ManualConnectPopup\").hide()
 		get_node(\"Controller\").set_active(true)
 
 
@@ -358,6 +386,11 @@ func disconnect_from_game(reason):
 	connected_address = \"\"
 	connection_active = false
 	
+	# Clear stored status data
+	temperature = -1
+	integrity = -1
+	status_flags = 0
+	
 	# Update UI
 	if(reason == \"\"):
 		reason = \"Unconnected\"
@@ -365,6 +398,8 @@ func disconnect_from_game(reason):
 		reason = \"Disconnected (\" + reason + \")\";
 	get_node(\"ConnectButton\").set_text(\"Connect\")
 	get_node(\"StatusLabel\").set_text(reason)
+	get_node(\"IntegrityBar\").set_value(0)
+	get_node(\"TemperatureBar\").set_value(0)
 
 
 func set_controller_type(type):
@@ -424,7 +459,7 @@ func set_player_hue(hue):
 	get_node(\"IntegrityBar\").set_color(color);
 	get_node(\"TemperatureIcon\").set_modulate(color);
 	get_node(\"TemperatureBar\").set_color(color);	
-	get_node(\"AboutPanel/LogoTextureFrame\").set_modulate(color);
+	get_node(\"AboutPopup/LogoTextureFrame\").set_modulate(color);
 
 	joystick_controller.set_color(color, color_pressed)
 	button_controller.set_color(color, color_pressed)
@@ -434,20 +469,58 @@ func set_player_hue(hue):
 	set_theme(theme)
 
 
-func update_flash(delta):
+func update_effects(delta):
 	
+	# Fade out damage effect
 	if(flash_intensity > 0.0):
 		flash_intensity -= delta * 2.0
 		if(flash_intensity < 0.0):
 			flash_intensity = 0.0
 	
-	var off_color = Color(\"#000\")
-	var flash_color = Color(1.0, 1.0, 1.0, 1.0)
-	flash_color.s = 1.0
-	flash_color.v = 0.5
-	flash_color.h = player_hue / 255
-
-	get_node(\"Flash\").set_modulate(off_color.linear_interpolate(flash_color, flash_intensity))
+	# Update damage overlay
+	var overlay = get_node(\"DamageOverlay\")
+	if(flash_intensity > 0.0):
+		var off_color = Color(\"#000\")
+		var flash_color = Color(1.0, 1.0, 1.0, 1.0)
+		flash_color.s = 1.0
+		flash_color.v = 0.5
+		flash_color.h = player_hue / 255
+		overlay.set_modulate(off_color.linear_interpolate(flash_color, clamp(flash_intensity, 0.0, 1.0)))
+		overlay.set_visible(true)
+	else:
+		overlay.set_visible(false)
+	
+	# Fade out disruption effect
+	if(status_flags & STATUS_FLAG_DISRUPTED or Input.is_key_pressed(KEY_D)):
+		disruption_intensity = 1.0
+	elif(disruption_intensity > 0.0):
+		disruption_intensity -= delta * 1.0
+		if(disruption_intensity < 0.0):
+			disruption_intensity = 0.0
+	
+	# Update disruption overlay
+	overlay = get_node(\"DisruptionOverlay\")
+	if(disruption_intensity > 0.0):
+		var value = disruption_intensity * disruption_intensity
+		overlay.set_modulate(Color(value, value, value, 1.0))
+		disruption_timer -= delta
+		if(disruption_timer <= 0.0):
+			overlay.set_region_rect(Rect2(0, 600 * randf(), 64, 600))
+			disruption_timer = randf() * 0.15
+		overlay.set_visible(true)
+		
+	else:
+		overlay.set_visible(false)
+	
+	# Update target lock sound loop
+	if(status_flags & STATUS_FLAG_TARGETED):
+		if(not get_node(\"TargetedSound\").is_playing() and config.get_value(\"settings\", \"sound_effects\", true)):
+			get_node(\"TargetedSound\").play()
+	else:
+		if(get_node(\"TargetedSound\").is_playing()):
+			get_node(\"TargetedSound\").stop()
+			
+	get_node(\"RespawnHintLabel\").set_visible(status_flags & STATUS_FLAG_RESPAWN_REQUEST)
 
 
 func axis_to_byte(val):
@@ -462,12 +535,12 @@ func axis_to_byte(val):
 func discover_games():
 	
 	# Clear previous games from list
-	var list = get_node(\"ConnectPanel/GameList\")
+	var list = get_node(\"ConnectPopup/GameList\")
 	list.clear()
 	list.add_item(\"<Manual connect>\")
 	list.set_item_metadata(0, \"0.0.0.0\")
 	
-	get_node(\"ConnectPanel/ConnectButton\").set_disabled(true)
+	get_node(\"ConnectPopup/ConnectButton\").set_disabled(true)
 	
 	# Construct a discover message
 	var msg = PoolByteArray()
@@ -487,10 +560,10 @@ func discover_games():
 	if(err == OK):
 		err = udp.put_packet(msg)
 		if(err == OK):
-			get_node(\"ConnectPanel/StatusLabel\").set_text(\"Searching for games..\")
+			get_node(\"ConnectPopup/StatusLabel\").set_text(\"Searching for games..\")
 
 	if(err != OK):
-		get_node(\"ConnectPanel/StatusLabel\").set_text(\"Network error \" + str(err))
+		get_node(\"ConnectPopup/StatusLabel\").set_text(\"Network error \" + str(err))
 
 	udp.set_dest_address(connected_address, port)
 
@@ -556,7 +629,7 @@ func handle_announce_message(packet, host, port):
 	var name = namedata.get_string_from_utf8()
 	
 	# Check if host is already in the list
-	var list = get_node(\"ConnectPanel/GameList\")
+	var list = get_node(\"ConnectPopup/GameList\")
 	var index = -1
 	for i in range(0, list.get_item_count()):
 		if(host == list.get_item_metadata(i)):
@@ -575,10 +648,10 @@ func handle_announce_message(packet, host, port):
 	# Auto-select first game if none is selected
 	if list.get_selected_items().size() == 0:
 		list.select(index)
-		get_node(\"ConnectPanel/ConnectButton\").set_disabled(false)
+		get_node(\"ConnectPopup/ConnectButton\").set_disabled(false)
 	
 	# Clear \"searching games..\" status
-	get_node(\"ConnectPanel/StatusLabel\").set_text(\"\")
+	get_node(\"ConnectPopup/StatusLabel\").set_text(\"\")
 
 
 func handle_status_message(packet, host, port):
@@ -592,20 +665,33 @@ func handle_status_message(packet, host, port):
 		return
 	
 	var config = packet[10];
-	var integrity = float(packet[11]) / 255.0
-	var temperature = float(packet[12]) / 255.0
-	var event = packet[13]
+	var new_integrity = float(packet[11]) / 255.0
+	var new_temperature = float(packet[12]) / 255.0
+	var new_event_trigger = packet[13]
+	
+	# Read optional status data
+	if(packet.size() >= 15):
+		status_flags = packet[14]
+	else:
+		status_flags = 0
+	
+	# Detect player ship destruction
+	if(integrity > 0.0 and new_integrity == 0.0):
+		handle_event(EVENT_DESTRUCTION)
+	elif(integrity == 0.0 and new_integrity == 1.0):
+		handle_event(EVENT_RESPAWN)
+	integrity = new_integrity
+	temperature = new_temperature
+	
+	# Handle event triggers
+	if(new_event_trigger != event_trigger):
+		if(event_trigger >= 0):
+			handle_event(new_event_trigger & 0x0F)
+		event_trigger = new_event_trigger
 	
 	# Update status bars
 	get_node(\"IntegrityBar\").set_value(integrity)
 	get_node(\"TemperatureBar\").set_value(temperature)
-	
-	# Handle event triggers
-	if(event != event_trigger):
-		if((event & 0x0F) == 0x1):
-			# Player ship damaged
-			flash_intensity = 1.0
-		event_trigger = event
 	
 	# Check that server configuration is up to date
 	if(config != config_sequence_number && configure_timer.get_time_left() <= 0.0):
@@ -619,996 +705,506 @@ func handle_status_message(packet, host, port):
 	
 	# Mark connection active once we have received a status messsage from server
 	connection_active = true;
-	
+
+
+func handle_event(event):
+	if(event == EVENT_DAMAGE):
+		if(flash_intensity < 1.0):
+			flash_intensity = 1.0
+	elif(event == EVENT_RESPAWN):
+		if(config.get_value(\"settings\", \"sound_effects\", true)):
+			get_node(\"RespawnSound\").play(0)
+	elif(event == EVENT_DESTRUCTION):
+		if(flash_intensity < 5.0):
+			flash_intensity = 5.0
+
+
 "
 
 [sub_resource type="ButtonGroup" id=2]
-
-resource_local_to_scene = true
 resource_name = "ControllerTypeButtonGroup"
-_sections_unfolded = [ "Resource" ]
 
 [sub_resource type="CanvasItemMaterial" id=3]
+blend_mode = 2
 
-render_priority = 0
+[sub_resource type="CanvasItemMaterial" id=4]
 blend_mode = 1
-light_mode = 0
 
-[node name="Panel" type="Panel" index="0"]
-
-anchor_left = 0.0
-anchor_top = 0.0
+[node name="Panel" type="Panel"]
 anchor_right = 1.0
 anchor_bottom = 1.0
 margin_left = 1.0
 margin_top = 1.0
 margin_right = 1.0
 margin_bottom = 1.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
 theme = ExtResource( 1 )
 script = SubResource( 1 )
-_sections_unfolded = [ "Material", "Theme", "Visibility" ]
 
-[node name="StatusLabel" type="Label" parent="." index="0"]
-
-anchor_left = 0.0
-anchor_top = 0.0
+[node name="StatusLabel" type="Label" parent="."]
 anchor_right = 1.0
-anchor_bottom = 0.0
 margin_left = 247.0
 margin_top = 23.0
 margin_right = -305.0
 margin_bottom = 63.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
 mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
 size_flags_vertical = 1
 text = "Unconnected"
 valign = 1
-percent_visible = 1.0
-lines_skipped = 0
-max_lines_visible = -1
 
-[node name="ConnectButton" type="Button" parent="." index="1"]
+[node name="RespawnHintLabel" type="Label" parent="."]
+margin_top = 151.0
+margin_right = 1019.0
+margin_bottom = 181.0
+text = "Hold shoot button to respawn"
+align = 1
 
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
+[node name="ConnectButton" type="Button" parent="."]
 margin_left = 743.0
 margin_top = 23.0
 margin_right = 933.0
 margin_bottom = 63.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-focus_mode = 2
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
-toggle_mode = false
-enabled_focus_mode = 2
-shortcut = null
-group = null
 text = "Connect"
-flat = false
-align = 1
-_sections_unfolded = [ "Mouse", "Theme", "Visibility" ]
 
-[node name="SettingsButton" type="Button" parent="." index="2"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
+[node name="SettingsButton" type="Button" parent="."]
 margin_left = 23.0
 margin_top = 23.0
 margin_right = 223.0
 margin_bottom = 63.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-focus_mode = 2
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
-toggle_mode = false
-enabled_focus_mode = 2
-shortcut = null
-group = null
 text = "Settings"
-flat = false
-align = 1
 
-[node name="SettingsPanel" type="PopupPanel" parent="." index="3"]
-
-editor/display_folded = true
-visible = false
-anchor_left = 0.0
-anchor_top = 0.0
+[node name="SettingsPopup" type="PopupDialog" parent="."]
+visible = true
 anchor_right = 1.0
 anchor_bottom = 1.0
 margin_left = 79.0
 margin_top = 119.0
 margin_right = -81.0
 margin_bottom = -81.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
 popup_exclusive = true
 
-[node name="GridContainer" type="GridContainer" parent="SettingsPanel" index="0"]
-
-anchor_left = 0.0
-anchor_top = 0.0
+[node name="GridContainer" type="GridContainer" parent="SettingsPopup"]
 anchor_right = 1.0
 anchor_bottom = 1.0
-margin_left = 24.0
-margin_top = 24.0
-margin_right = 100.0
-margin_bottom = -88.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
+margin_left = 20.0
+margin_top = 20.0
+margin_right = -20.0
+margin_bottom = -20.0
 mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
 custom_constants/vseparation = 24
-custom_constants/hseparation = 140
+custom_constants/hseparation = 100
 columns = 2
 
-[node name="PlayerNameLabel" type="Label" parent="SettingsPanel/GridContainer" index="0"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
-margin_right = 283.0
-margin_bottom = 27.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
+[node name="PlayerNameLabel" type="Label" parent="SettingsPopup/GridContainer"]
+margin_right = 266.0
+margin_bottom = 30.0
 mouse_filter = 1
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
 size_flags_vertical = 0
 custom_fonts/font = ExtResource( 2 )
 text = "Player name:"
-percent_visible = 1.0
-lines_skipped = 0
-max_lines_visible = -1
 
-[node name="PlayerNameLineEdit" type="LineEdit" parent="SettingsPanel/GridContainer" index="1"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
-margin_left = 423.0
-margin_right = 823.0
+[node name="PlayerNameLineEdit" type="LineEdit" parent="SettingsPopup/GridContainer"]
+margin_left = 366.0
+margin_right = 824.0
 margin_bottom = 40.0
 rect_min_size = Vector2( 400, 40 )
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-focus_mode = 2
-mouse_filter = 0
-mouse_default_cursor_shape = 1
-size_flags_horizontal = 1
-size_flags_vertical = 1
+size_flags_horizontal = 3
 custom_fonts/font = ExtResource( 2 )
 max_length = 20
-focus_mode = 2
-context_menu_enabled = true
-placeholder_alpha = 0.6
 caret_blink = true
-caret_blink_speed = 0.65
-caret_position = 0
 
-[node name="PlayerColorLabel" type="Label" parent="SettingsPanel/GridContainer" index="2"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
+[node name="PlayerColorLabel" type="Label" parent="SettingsPopup/GridContainer"]
 margin_top = 64.0
-margin_right = 283.0
-margin_bottom = 91.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
+margin_right = 266.0
+margin_bottom = 94.0
 mouse_filter = 1
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
 size_flags_vertical = 0
 custom_fonts/font = ExtResource( 2 )
 text = "Player color:"
-percent_visible = 1.0
-lines_skipped = 0
-max_lines_visible = -1
 
-[node name="PlayerColorScrollBar" type="HScrollBar" parent="SettingsPanel/GridContainer" index="3"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
-margin_left = 423.0
+[node name="PlayerColorScrollBar" type="HScrollBar" parent="SettingsPopup/GridContainer"]
+margin_left = 366.0
 margin_top = 64.0
-margin_right = 823.0
+margin_right = 824.0
 margin_bottom = 104.0
 rect_min_size = Vector2( 400, 40 )
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
+size_flags_horizontal = 3
 size_flags_vertical = 1
-min_value = 0.0
 max_value = 255.0
 step = 16.0
 page = 32.0
-value = 0.0
-exp_edit = false
-rounded = false
-custom_step = -1.0
 
-[node name="ControllerTypeLabel" type="Label" parent="SettingsPanel/GridContainer" index="4"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
+[node name="ControllerTypeLabel" type="Label" parent="SettingsPopup/GridContainer"]
 margin_top = 128.0
-margin_right = 283.0
-margin_bottom = 155.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
+margin_right = 266.0
+margin_bottom = 158.0
 mouse_filter = 1
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
 size_flags_vertical = 0
 custom_fonts/font = ExtResource( 2 )
 text = "Controller type:"
-percent_visible = 1.0
-lines_skipped = 0
-max_lines_visible = -1
 
-[node name="ControllerTypeContainer" type="HBoxContainer" parent="SettingsPanel/GridContainer" index="5"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
-margin_left = 423.0
+[node name="ControllerTypeContainer" type="HBoxContainer" parent="SettingsPopup/GridContainer"]
+margin_left = 366.0
 margin_top = 128.0
-margin_right = 823.0
-margin_bottom = 161.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-mouse_filter = 1
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
-alignment = 0
-_sections_unfolded = [ "Rect", "Size Flags" ]
+margin_right = 824.0
+margin_bottom = 164.0
 
-[node name="ControllerTypeButton1" type="Button" parent="SettingsPanel/GridContainer/ControllerTypeContainer" index="0"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
-margin_right = 198.0
-margin_bottom = 33.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-focus_mode = 2
-mouse_filter = 0
-mouse_default_cursor_shape = 0
+[node name="ControllerTypeButton1" type="Button" parent="SettingsPopup/GridContainer/ControllerTypeContainer"]
+margin_right = 227.0
+margin_bottom = 36.0
 size_flags_horizontal = 3
-size_flags_vertical = 1
 toggle_mode = true
-enabled_focus_mode = 2
-shortcut = null
 group = SubResource( 2 )
 text = "Buttons"
-flat = false
-align = 1
-_sections_unfolded = [ "Rect", "Size Flags", "custom_colors", "custom_constants", "custom_icons", "custom_styles" ]
 
-[node name="ControllerTypeButton2" type="Button" parent="SettingsPanel/GridContainer/ControllerTypeContainer" index="1"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
-margin_left = 202.0
-margin_right = 400.0
-margin_bottom = 33.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-focus_mode = 2
-mouse_filter = 0
-mouse_default_cursor_shape = 0
+[node name="ControllerTypeButton2" type="Button" parent="SettingsPopup/GridContainer/ControllerTypeContainer"]
+margin_left = 231.0
+margin_right = 458.0
+margin_bottom = 36.0
 size_flags_horizontal = 3
-size_flags_vertical = 1
 toggle_mode = true
-enabled_focus_mode = 2
-shortcut = null
 group = SubResource( 2 )
 text = "Joystick"
-flat = false
-align = 1
-_sections_unfolded = [ "Rect", "Size Flags", "custom_colors", "custom_constants", "custom_icons", "custom_styles" ]
 
-[node name="SensitivityLabel" type="Label" parent="SettingsPanel/GridContainer" index="6"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
-margin_top = 185.0
-margin_right = 283.0
-margin_bottom = 212.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
+[node name="SensitivityLabel" type="Label" parent="SettingsPopup/GridContainer"]
+margin_top = 188.0
+margin_right = 266.0
+margin_bottom = 218.0
 mouse_filter = 1
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
 size_flags_vertical = 0
 text = "Joystick sensitivity:"
-percent_visible = 1.0
-lines_skipped = 0
-max_lines_visible = -1
 
-[node name="SensitivityScrollBar" type="HScrollBar" parent="SettingsPanel/GridContainer" index="7"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
-margin_left = 423.0
-margin_top = 185.0
-margin_right = 823.0
-margin_bottom = 225.0
+[node name="SensitivityScrollBar" type="HScrollBar" parent="SettingsPopup/GridContainer"]
+margin_left = 366.0
+margin_top = 188.0
+margin_right = 824.0
+margin_bottom = 228.0
 rect_min_size = Vector2( 400, 40 )
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
+size_flags_horizontal = 3
 size_flags_vertical = 1
-min_value = 0.0
 max_value = 1.0
 step = 0.1
 page = 0.125
-value = 0.0
-exp_edit = false
-rounded = false
-custom_step = -1.0
 
-[node name="OKButton" type="Button" parent="SettingsPanel" index="1"]
+[node name="SoundEffectsLabel" type="Label" parent="SettingsPopup/GridContainer"]
+margin_top = 257.0
+margin_right = 266.0
+margin_bottom = 287.0
+text = "Sound effects:"
 
+[node name="SoundEffectsButton" type="Button" parent="SettingsPopup/GridContainer"]
+margin_left = 366.0
+margin_top = 252.0
+margin_right = 824.0
+margin_bottom = 292.0
+rect_min_size = Vector2( 400, 40 )
+toggle_mode = true
+text = "On"
+
+[node name="OKButton" type="Button" parent="SettingsPopup"]
 anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-margin_left = -216.0
-margin_top = -64.0
-margin_right = -26.0
-margin_bottom = -24.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-focus_mode = 2
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
+margin_left = -210.0
+margin_top = -60.0
+margin_right = -20.0
+margin_bottom = -20.0
 custom_fonts/font = ExtResource( 2 )
-toggle_mode = false
-enabled_focus_mode = 2
-shortcut = null
-group = null
 text = "OK"
-flat = false
-align = 1
 
-[node name="ConnectPanel" type="PopupPanel" parent="." index="4"]
-
+[node name="ConnectPopup" type="PopupDialog" parent="."]
 editor/display_folded = true
-visible = false
-anchor_left = 0.0
-anchor_top = 0.0
 anchor_right = 1.0
 anchor_bottom = 1.0
 margin_left = 79.0
 margin_top = 119.0
 margin_right = -81.0
 margin_bottom = -81.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
 popup_exclusive = true
 
-[node name="GameList" type="ItemList" parent="ConnectPanel" index="0"]
-
-anchor_left = 0.0
-anchor_top = 0.0
+[node name="GameList" type="ItemList" parent="ConnectPopup"]
 anchor_right = 1.0
 anchor_bottom = 1.0
-margin_left = 24.0
-margin_top = 24.0
-margin_right = -24.0
-margin_bottom = -88.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = true
-focus_mode = 2
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
+margin_left = 20.0
+margin_top = 20.0
+margin_right = -20.0
+margin_bottom = -80.0
 custom_constants/vseparation = 16
 custom_constants/line_separation = 0
-items = [  ]
-select_mode = 0
-allow_reselect = false
-icon_mode = 1
-fixed_icon_size = Vector2( 0, 0 )
 
-[node name="ConnectButton" type="Button" parent="ConnectPanel" index="1"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
-margin_left = 648.0
-margin_top = 336.0
-margin_right = 838.0
-margin_bottom = 376.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-focus_mode = 2
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
-custom_fonts/font = ExtResource( 2 )
-toggle_mode = false
-enabled_focus_mode = 2
-shortcut = null
-group = null
-text = "Connect"
-flat = false
-align = 1
-
-[node name="CancelButton" type="Button" parent="ConnectPanel" index="2"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
-margin_left = 432.0
-margin_top = 336.0
-margin_right = 622.0
-margin_bottom = 376.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-focus_mode = 2
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
-custom_fonts/font = ExtResource( 2 )
-toggle_mode = false
-enabled_focus_mode = 2
-shortcut = null
-group = null
-text = "Cancel"
-flat = false
-align = 1
-
-[node name="StatusLabel" type="Label" parent="ConnectPanel" index="3"]
-
-anchor_left = 0.0
-anchor_top = 0.0
+[node name="ConnectButton" type="Button" parent="ConnectPopup"]
+anchor_left = 1.0
+anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-margin_left = 30.0
-margin_top = 336.0
-margin_right = -444.0
-margin_bottom = -24.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
+margin_left = -210.0
+margin_top = -60.0
+margin_right = -20.0
+margin_bottom = -20.0
+custom_fonts/font = ExtResource( 2 )
+text = "Connect"
+
+[node name="CancelButton" type="Button" parent="ConnectPopup"]
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = -420.0
+margin_top = -60.0
+margin_right = -230.0
+margin_bottom = -20.0
+custom_fonts/font = ExtResource( 2 )
+text = "Cancel"
+
+[node name="StatusLabel" type="Label" parent="ConnectPopup"]
+anchor_top = 1.0
+anchor_bottom = 1.0
+margin_left = 20.0
+margin_top = -60.0
+margin_right = 426.0
+margin_bottom = -20.0
 mouse_filter = 1
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
 size_flags_vertical = 0
 custom_fonts/font = ExtResource( 2 )
-percent_visible = 1.0
-lines_skipped = 0
-max_lines_visible = -1
+valign = 1
 
-[node name="IntegrityBar" parent="." index="5" instance=ExtResource( 3 )]
-
+[node name="IntegrityBar" parent="." instance=ExtResource( 3 )]
 margin_left = 79.0
 margin_top = 79.0
 margin_right = 479.0
 margin_bottom = 111.0
 
-[node name="TemperatureBar" parent="." index="6" instance=ExtResource( 3 )]
-
+[node name="TemperatureBar" parent="." instance=ExtResource( 3 )]
 margin_left = 543.0
 margin_top = 79.0
 margin_right = 943.0
 margin_bottom = 111.0
 
-[node name="IntegrityIcon" type="Sprite" parent="." index="7"]
-
+[node name="IntegrityIcon" type="Sprite" parent="."]
 position = Vector2( 47, 95 )
 scale = Vector2( 0.25, 0.25 )
 texture = ExtResource( 4 )
 
-[node name="TemperatureIcon" type="Sprite" parent="." index="8"]
-
+[node name="TemperatureIcon" type="Sprite" parent="."]
 position = Vector2( 975.75, 95 )
 scale = Vector2( 0.25, 0.25 )
 texture = ExtResource( 5 )
 
-[node name="AboutPanel" type="PopupPanel" parent="." index="9"]
-
-visible = false
-anchor_left = 0.0
-anchor_top = 0.0
+[node name="AboutPopup" type="PopupDialog" parent="."]
+editor/display_folded = true
 anchor_right = 1.0
 anchor_bottom = 1.0
 margin_left = 79.0
 margin_top = 119.0
 margin_right = -81.0
 margin_bottom = -81.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
 popup_exclusive = true
 
-[node name="OKButton" type="Button" parent="AboutPanel" index="0"]
-
+[node name="OKButton" type="Button" parent="AboutPopup"]
 anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-margin_left = -216.0
-margin_top = -64.0
-margin_right = -26.0
-margin_bottom = -24.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-focus_mode = 2
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
+margin_left = -210.0
+margin_top = -60.0
+margin_right = -20.0
+margin_bottom = -20.0
 custom_fonts/font = ExtResource( 2 )
-toggle_mode = false
-enabled_focus_mode = 2
-shortcut = null
-group = null
 text = "OK"
-flat = false
-align = 1
 
-[node name="LogoTextureFrame" type="TextureRect" parent="AboutPanel" index="1"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
-margin_left = 23.0
-margin_top = 23.0
-margin_right = 2071.0
-margin_bottom = 267.0
-rect_scale = Vector2( 0.4, 0.4 )
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-mouse_filter = 1
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
-texture = ExtResource( 6 )
-stretch_mode = 0
-
-[node name="RichTextLabel" type="RichTextLabel" parent="AboutPanel" index="2"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
-margin_left = 24.0
-margin_top = 140.0
-margin_right = 840.0
+[node name="LogoTextureFrame" type="TextureRect" parent="AboutPopup"]
+anchor_right = 1.0
+margin_left = 20.0
+margin_top = 20.0
+margin_right = 1204.0
 margin_bottom = 320.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = true
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
-bbcode_enabled = false
+rect_scale = Vector2( 0.4, 0.4 )
+texture = ExtResource( 6 )
+stretch_mode = 4
+
+[node name="RichTextLabel" type="RichTextLabel" parent="AboutPopup"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = 20.0
+margin_top = 160.0
+margin_right = -20.0
+margin_bottom = -80.0
 bbcode_text = "Mobile controller application for Hyper Ultra Astronautics - A local multiplayer space arena shoot'em up on PC.
 
-Copyright 2018 FRACTiLE Games
+Copyright 2019 FRACTiLE Games
 http://www.fractilegames.com
-
-
 
 Made with Godot engine (https://godotengine.org).
 
 Application font by Matt McInerney (http://pixelspread.com)."
-visible_characters = -1
-percent_visible = 1.0
-meta_underlined = true
-tab_size = 4
 text = "Mobile controller application for Hyper Ultra Astronautics - A local multiplayer space arena shoot'em up on PC.
 
-Copyright 2018 FRACTiLE Games
+Copyright 2019 FRACTiLE Games
 http://www.fractilegames.com
-
-
 
 Made with Godot engine (https://godotengine.org).
 
 Application font by Matt McInerney (http://pixelspread.com)."
-scroll_active = true
-scroll_following = false
-selection_enabled = false
-override_selected_font_color = false
-_sections_unfolded = [ "BBCode" ]
 
-[node name="LinkButton" type="Button" parent="AboutPanel" index="3"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
-margin_left = 24.0
-margin_top = 336.0
-margin_right = 216.0
-margin_bottom = 376.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-focus_mode = 2
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
-toggle_mode = false
-enabled_focus_mode = 2
-shortcut = null
-group = null
+[node name="LinkButton" type="Button" parent="AboutPopup"]
+anchor_top = 1.0
+anchor_bottom = 1.0
+margin_left = 20.0
+margin_top = -60.0
+margin_right = 210.0
+margin_bottom = -20.0
 text = "Website"
-flat = false
-align = 1
 
-[node name="AboutButton" type="Button" parent="." index="10"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
+[node name="AboutButton" type="Button" parent="."]
 margin_left = 959.0
 margin_top = 23.0
 margin_right = 999.0
 margin_bottom = 63.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-focus_mode = 2
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
-toggle_mode = false
-enabled_focus_mode = 2
-shortcut = null
-group = null
 text = "?"
-flat = false
-align = 1
 
-[node name="PrivacyPanel" type="PopupPanel" parent="." index="11"]
-
+[node name="PrivacyPopup" type="PopupDialog" parent="."]
 editor/display_folded = true
-visible = false
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
 margin_left = 79.0
 margin_top = 119.0
 margin_right = 943.0
 margin_bottom = 519.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
 popup_exclusive = true
 
-[node name="RichTextLabel" type="RichTextLabel" parent="PrivacyPanel" index="0"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
-margin_left = 24.0
-margin_top = 16.0
-margin_right = 840.0
-margin_bottom = 319.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = true
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
-bbcode_enabled = false
+[node name="RichTextLabel" type="RichTextLabel" parent="PrivacyPopup"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = 20.0
+margin_top = 20.0
+margin_right = -20.0
+margin_bottom = -80.0
 bbcode_text = "PRIVACY POLICY
 
 This application does not collect or process any personal data other than device network address which is needed to connect to the game.
 
-Your device's network address and the player name you may have set will be transmitted unencrypted in the current Wi-Fi network and will be accessed by game servers running in same subnetwork."
-visible_characters = -1
-percent_visible = 1.0
-meta_underlined = true
-tab_size = 4
+The player settings you have entered will be transmitted unencrypted in the current Wi-Fi network and will be accessed by game servers running in same subnetwork."
 text = "PRIVACY POLICY
 
 This application does not collect or process any personal data other than device network address which is needed to connect to the game.
 
-Your device's network address and the player name you may have set will be transmitted unencrypted in the current Wi-Fi network and will be accessed by game servers running in same subnetwork."
-scroll_active = true
-scroll_following = false
-selection_enabled = false
-override_selected_font_color = false
+The player settings you have entered will be transmitted unencrypted in the current Wi-Fi network and will be accessed by game servers running in same subnetwork."
 
-[node name="AcceptButton" type="Button" parent="PrivacyPanel" index="1"]
-
+[node name="AcceptButton" type="Button" parent="PrivacyPopup"]
 anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-margin_left = -216.0
-margin_top = -64.0
-margin_right = -26.0
-margin_bottom = -24.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-focus_mode = 2
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
+margin_left = -210.0
+margin_top = -60.0
+margin_right = -20.0
+margin_bottom = -20.0
 custom_fonts/font = ExtResource( 2 )
-toggle_mode = false
-enabled_focus_mode = 2
-shortcut = null
-group = null
 text = "Accept"
-flat = false
-align = 1
 
-[node name="RejectButton" type="Button" parent="PrivacyPanel" index="2"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
-margin_left = 24.0
-margin_top = 336.0
-margin_right = 216.0
-margin_bottom = 376.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-focus_mode = 2
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
-toggle_mode = false
-enabled_focus_mode = 2
-shortcut = null
-group = null
+[node name="RejectButton" type="Button" parent="PrivacyPopup"]
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = -420.0
+margin_top = -60.0
+margin_right = -230.0
+margin_bottom = -20.0
 text = "Reject"
-flat = false
-align = 1
 
-[node name="ManualConnectPanel" type="PopupPanel" parent="." index="12"]
-
+[node name="ManualConnectPopup" type="PopupDialog" parent="."]
 editor/display_folded = true
-visible = false
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
 margin_left = 79.0
 margin_top = 119.0
 margin_right = 943.0
 margin_bottom = 519.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
-popup_exclusive = false
 
-[node name="AddressLabel" type="Label" parent="ManualConnectPanel" index="0"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
-margin_left = 24.0
-margin_top = 30.0
-margin_right = 307.0
-margin_bottom = 57.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
+[node name="AddressLabel" type="Label" parent="ManualConnectPopup"]
+margin_left = 20.0
+margin_top = 20.0
+margin_right = 340.0
+margin_bottom = 60.0
 mouse_filter = 1
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
 size_flags_vertical = 0
 text = "Game host address:"
-percent_visible = 1.0
-lines_skipped = 0
-max_lines_visible = -1
+valign = 1
 
-[node name="AddressLineEdit" type="LineEdit" parent="ManualConnectPanel" index="1"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
-margin_left = 442.0
-margin_top = 24.0
-margin_right = 842.0
-margin_bottom = 64.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-focus_mode = 2
-mouse_filter = 0
-mouse_default_cursor_shape = 1
-size_flags_horizontal = 1
-size_flags_vertical = 1
+[node name="AddressLineEdit" type="LineEdit" parent="ManualConnectPopup"]
+anchor_right = 1.0
+margin_left = 400.0
+margin_top = 20.0
+margin_right = -20.0
+margin_bottom = 60.0
 max_length = 16
-focus_mode = 2
-context_menu_enabled = true
-placeholder_alpha = 0.6
 caret_blink = true
-caret_blink_speed = 0.65
-caret_position = 0
 
-[node name="InstructionLabel" type="RichTextLabel" parent="ManualConnectPanel" index="2"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
-margin_left = 24.0
-margin_top = 90.0
-margin_right = 840.0
-margin_bottom = 310.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = true
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
-bbcode_enabled = false
+[node name="InstructionLabel" type="RichTextLabel" parent="ManualConnectPopup"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = 20.0
+margin_top = 80.0
+margin_right = -20.0
+margin_bottom = -80.0
 bbcode_text = "Enter the local IP address of the PC running Hyper Ultra Astronautics above.
 
 You can see the address at the top of the screen when a new match is started on the PC. Note: Both the PC and mobile devices must be connected directly to the same sub-network (e.g. Wi-Fi access point)."
-visible_characters = -1
-percent_visible = 1.0
-meta_underlined = true
-tab_size = 4
 text = "Enter the local IP address of the PC running Hyper Ultra Astronautics above.
 
 You can see the address at the top of the screen when a new match is started on the PC. Note: Both the PC and mobile devices must be connected directly to the same sub-network (e.g. Wi-Fi access point)."
-scroll_active = true
-scroll_following = false
-selection_enabled = false
-override_selected_font_color = false
 
-[node name="ConnectButton" type="Button" parent="ManualConnectPanel" index="3"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
-margin_left = 650.0
-margin_top = 336.0
-margin_right = 840.0
-margin_bottom = 376.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-focus_mode = 2
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
-toggle_mode = false
-enabled_focus_mode = 2
-shortcut = null
-group = null
-text = "Connect"
-flat = false
-align = 1
-
-[node name="CancelButton" type="Button" parent="ManualConnectPanel" index="4"]
-
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
-margin_left = 432.0
-margin_top = 336.0
-margin_right = 622.0
-margin_bottom = 376.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
-focus_mode = 2
-mouse_filter = 0
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
-size_flags_vertical = 1
-toggle_mode = false
-enabled_focus_mode = 2
-shortcut = null
-group = null
-text = "Cancel"
-flat = false
-align = 1
-
-[node name="StatusLabel" type="Label" parent="ManualConnectPanel" index="5"]
-
-anchor_left = 0.0
-anchor_top = 0.0
+[node name="ConnectButton" type="Button" parent="ManualConnectPopup"]
+anchor_left = 1.0
+anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-margin_left = 30.0
-margin_top = 336.0
-margin_right = -444.0
-margin_bottom = -24.0
-rect_pivot_offset = Vector2( 0, 0 )
-rect_clip_content = false
+margin_left = -210.0
+margin_top = -60.0
+margin_right = -20.0
+margin_bottom = -20.0
+text = "Connect"
+
+[node name="CancelButton" type="Button" parent="ManualConnectPopup"]
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = -420.0
+margin_top = -60.0
+margin_right = -230.0
+margin_bottom = -20.0
+text = "Cancel"
+
+[node name="StatusLabel" type="Label" parent="ManualConnectPopup"]
+anchor_top = 1.0
+anchor_bottom = 1.0
+margin_left = 20.0
+margin_top = -60.0
+margin_right = 420.0
+margin_bottom = -20.0
 mouse_filter = 1
-mouse_default_cursor_shape = 0
-size_flags_horizontal = 1
 size_flags_vertical = 0
-percent_visible = 1.0
-lines_skipped = 0
-max_lines_visible = -1
+valign = 1
 
-[node name="Flash" type="Sprite" parent="." index="13"]
+[node name="TargetedSound" type="AudioStreamPlayer" parent="."]
+stream = ExtResource( 7 )
+volume_db = -12.0
 
-modulate = Color( 0, 0, 0, 1 )
+[node name="RespawnSound" type="AudioStreamPlayer" parent="."]
+stream = ExtResource( 8 )
+volume_db = -12.0
+
+[node name="DisruptionOverlay" type="Sprite" parent="."]
+visible = false
 material = SubResource( 3 )
-position = Vector2( 507, 299 )
+position = Vector2( 512, 300 )
+scale = Vector2( 16, 1 )
 z_index = 100
-texture = ExtResource( 7 )
-_sections_unfolded = [ "Animation", "Material", "Offset", "Region", "Visibility" ]
+texture = ExtResource( 9 )
+region_enabled = true
+region_rect = Rect2( 0, 100, 64, 600 )
 
-
+[node name="DamageOverlay" type="Sprite" parent="."]
+visible = false
+material = SubResource( 4 )
+position = Vector2( 512, 300 )
+z_index = 100
+texture = ExtResource( 10 )

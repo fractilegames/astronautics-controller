@@ -2,15 +2,15 @@
 
 importer="texture"
 type="StreamTexture"
-path="res://.import/rightbutton.png-9a18d5f19e81304f026de18b1adf71ce.stex"
+path="res://.import/disruption.png-def79259c759941936f76190188a14e5.stex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://rightbutton.png"
-dest_files=[ "res://.import/rightbutton.png-9a18d5f19e81304f026de18b1adf71ce.stex" ]
+source_file="res://disruption.png"
+dest_files=[ "res://.import/disruption.png-def79259c759941936f76190188a14e5.stex" ]
 
 [params]
 
@@ -19,9 +19,9 @@ compress/lossy_quality=0.7
 compress/hdr_mode=0
 compress/bptc_ldr=0
 compress/normal_map=0
-flags/repeat=0
-flags/filter=true
-flags/mipmaps=true
+flags/repeat=1
+flags/filter=false
+flags/mipmaps=false
 flags/anisotropic=false
 flags/srgb=2
 process/fix_alpha_border=true
