@@ -716,12 +716,14 @@ func handle_event(event):
 	if(event == EVENT_DAMAGE):
 		if(flash_intensity < 1.0):
 			flash_intensity = 1.0
+		Input.vibrate_handheld(50)
 	elif(event == EVENT_RESPAWN):
 		if(config.get_value(\"settings\", \"sound_effects\", true)):
 			get_node(\"RespawnSound\").play(0)
 	elif(event == EVENT_DESTRUCTION):
 		if(flash_intensity < 5.0):
 			flash_intensity = 5.0
+		Input.vibrate_handheld(1000)
 
 
 "
