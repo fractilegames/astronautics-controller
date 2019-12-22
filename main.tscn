@@ -555,15 +555,20 @@ func discover_games():
 	msg.push_back(0)	
 	msg.push_back(100)		# Message type: discover
 	
-	# Send the message to multicast address
-	var err = udp.set_dest_address(\"224.0.0.1\", port)
-	if(err == OK):
-		err = udp.put_packet(msg)
-		if(err == OK):
-			get_node(\"ConnectPopup/StatusLabel\").set_text(\"Searching for games..\")
+	# Send the message to primary multicast address
+	var err1 = udp.set_dest_address(\"224.0.0.1\", port)
+	if(err1 == OK):
+		err1 = udp.put_packet(msg)
 
-	if(err != OK):
-		get_node(\"ConnectPopup/StatusLabel\").set_text(\"Network error \" + str(err))
+	# Send the message to primary multicast address
+	var err2 = udp.set_dest_address(\"239.0.0.1\", port)
+	if(err2 == OK):
+		err2 = udp.put_packet(msg)
+	
+	if(err1 == OK or err2 == OK):
+		get_node(\"ConnectPopup/StatusLabel\").set_text(\"Searching for games..\")
+	else:
+		get_node(\"ConnectPopup/StatusLabel\").set_text(\"Network error \" + str(err1) + \"/\" + str(err2))
 
 	udp.set_dest_address(connected_address, port)
 
